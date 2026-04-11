@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/router/app_router.dart';
 import 'core/signals/app_signals.dart';
+import 'core/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,17 +28,7 @@ class DoraebinApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'Doraebin',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF776300),
-          surface: const Color(0xFFFFF6A5),
-          primary: const Color(0xFF776300),
-          secondary: const Color(0xFF006C95),
-        ),
-        scaffoldBackgroundColor: const Color(0xFFFFFBF0),
-        useMaterial3: true,
-        textTheme: GoogleFonts.beVietnamProTextTheme(),
-      ),
+      theme: AppTheme.lightTheme,
       routerConfig: appRouter,
     );
   }

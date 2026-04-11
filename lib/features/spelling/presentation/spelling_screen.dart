@@ -1,10 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:go_router/go_router.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:unorm_dart/unorm_dart.dart' as unorm;
 import '../../../core/signals/app_signals.dart';
 
+/// A landscape-oriented spelling screen that guides children through 
+/// Vietnamese syllable decomposition with interactive animations.
 class SpellingScreen extends StatefulWidget {
   const SpellingScreen({super.key});
 
@@ -13,13 +17,17 @@ class SpellingScreen extends StatefulWidget {
 }
 
 class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStateMixin {
+  // TTS & Animations
   final FlutterTts _tts = FlutterTts();
   late AnimationController _emojiController;
   late Animation<double> _emojiScale;
   
+  // State Tracking
   final Set<int> _revealedIndices = {};
+  int _activeSpellingIndex = -1;
+  bool _isAutoSpelling = false;
   
-  // Candy Color Palette for Stickers
+  // Design Tokens
   final List<Color> _stickerPalette = [
     const Color(0xFFFFE0E0), // Mint Pink
     const Color(0xFFE0FFE0), // Mint Green
@@ -33,6 +41,12 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
   void initState() {
     super.initState();
     _initTts();
+    _initAnimations();
+  }
+
+  // --- Initialization & Lifecycle ---
+
+  void _initAnimations() {
     _emojiController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
@@ -48,6 +62,47 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
     await _tts.setPitch(1.1);
     await _tts.setSpeechRate(0.5);
   }
+
+  @override
+  void dispose() {
+    _tts.stop();
+    _emojiController.dispose();
+    super.dispose();
+  }
+
+  // --- Logic & Actions ---
+
+  Future<void> _startAutoSpelling(List<String> displayParts, List<String> ttsParts) async {
+    if (_isAutoSpelling) return;
+    
+    setState(() {
+      _isAutoSpelling = true;
+      _revealedIndices.addAll(Iterable.generate(displayParts.length));
+    });
+
+    for (int i = 0; i < displayParts.length; i++) {
+      if (!mounted) break;
+      setState(() => _activeSpellingIndex = i);
+      await _tts.speak(ttsParts[i]);
+      await Future.delayed(const Duration(milliseconds: 600)); 
+    }
+
+    if (mounted) {
+      setState(() {
+        _activeSpellingIndex = -1;
+        _isAutoSpelling = false;
+      });
+      _emojiController.forward(from: 0);
+    }
+  }
+
+  void _speak(String text, {bool isFinal = false}) async {
+    await _tts.stop();
+    await _tts.speak(text);
+    if (isFinal) _emojiController.forward(from: 0);
+  }
+
+  // --- Utility Helpers ---
 
   String _getEmojiForWord(String word) {
     final lowerWord = word.toLowerCase();
@@ -65,17 +120,185 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
     return map[lowerWord] ?? '✨';
   }
 
-  void _speak(String text, {bool isFinal = false}) async {
-    await _tts.stop();
-    await _tts.speak(text);
-    if (isFinal) {
-      _emojiController.forward(from: 0);
-    }
+  // --- UI Builders ---
+
+  Widget _buildTopSection(BuildContext context, dynamic result, List<String> displayParts, List<String> ttsParts) {
+    return Expanded(
+      flex: 5,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Word Display Card
+          Expanded(
+            flex: 3,
+            child: _buildWordDisplayCard(context, result.original, displayParts, ttsParts),
+          ),
+          const SizedBox(width: 16),
+          // Illustration Card
+          Expanded(
+            flex: 2,
+            child: _buildEmojiIllustration(context, result.original),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWordDisplayCard(BuildContext context, String original, List<String> displayParts, List<String> ttsParts) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: Text(
+                  unorm.nfc(original),
+                  style: theme.textTheme.displayLarge?.copyWith(
+                    fontSize: 100, // keep the large override
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(
+            onPressed: _isAutoSpelling ? null : () => _startAutoSpelling(displayParts, ttsParts),
+            icon: _isAutoSpelling 
+              ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimaryContainer))
+              : const Icon(Icons.play_arrow_rounded, size: 24),
+            label: Text(
+              _isAutoSpelling ? "Đang đánh vần..." : "Đánh vần cho bé",
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: _isAutoSpelling ? colorScheme.onPrimaryContainer : colorScheme.onPrimary,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _isAutoSpelling ? colorScheme.primaryContainer : colorScheme.primary,
+              foregroundColor: _isAutoSpelling ? colorScheme.onPrimaryContainer : colorScheme.onPrimary,
+              elevation: 0,
+              minimumSize: const Size(200, 44),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmojiIllustration(BuildContext context, String original) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ScaleTransition(
+      scale: _emojiScale,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: colorScheme.surfaceContainerLowest, width: 4),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Center(
+              child: Text(
+                _getEmojiForWord(original),
+                style: TextStyle(fontSize: constraints.maxHeight * 0.5),
+              ),
+            );
+          }
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpellingSection(BuildContext context, List<String> displayParts, List<String> ttsParts) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return Expanded(
+      flex: 4,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            _isAutoSpelling 
+              ? "Nghe kỹ nhé..."
+              : (_revealedIndices.length == displayParts.length 
+                  ? "Giỏi quá! Chạm lại để nghe tiếp nha!"
+                  : "Chạm vào các ô để khám phá nào!"),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: colorScheme.primary.withOpacity(0.6),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 12,
+                  children: List.generate(displayParts.length, (index) {
+                    return _buildSticker(index, displayParts, ttsParts);
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSticker(int index, List<String> displayParts, List<String> ttsParts) {
+    final part = displayParts[index];
+    final ttsPart = ttsParts.length > index ? ttsParts[index] : part;
+    final rotation = (index % 2 == 0 ? 1 : -1) * (index % 3 + 1) * math.pi / 180 * 1.5;
+    final isRevealed = _revealedIndices.contains(index);
+    final color = _stickerPalette[index % _stickerPalette.length];
+    final isActive = _activeSpellingIndex == index;
+
+    return Transform.rotate(
+      angle: rotation,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 160),
+        child: _StickerCard(
+          text: part,
+          isRevealed: isRevealed,
+          isActive: isActive,
+          backgroundColor: color,
+          onTap: _isAutoSpelling ? () {} : () {
+            setState(() => _revealedIndices.add(index));
+            _speak(ttsPart);
+          },
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final result = currentWordSignal.watch(context);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     if (result == null) {
       return const Scaffold(body: Center(child: Text("No word selected")));
@@ -85,188 +308,34 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
     final displayParts = result.spellString.split(' ');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFBF0),
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Main Content
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
               child: Column(
                 children: [
-                  // Top Section: Word & Graphic Side-by-Side
-                  Expanded(
-                    flex: 5,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Word Card
-                        Expanded(
-                          flex: 3,
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(32),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF776300).withOpacity(0.1),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: Center(
-                                    child: FittedBox(
-                                      fit: BoxFit.contain,
-                                      child: Text(
-                                        result.original,
-                                        style: GoogleFonts.beVietnamPro(
-                                          fontSize: 100,
-                                          fontWeight: FontWeight.bold,
-                                          color: const Color(0xFF776300),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                ElevatedButton.icon(
-                                  onPressed: () => _speak(result.ttsString, isFinal: true),
-                                  icon: const Icon(Icons.volume_up_rounded, size: 24),
-                                  label: Text(
-                                    "Nghe đánh vần",
-                                    style: GoogleFonts.beVietnamPro(fontSize: 16, fontWeight: FontWeight.bold),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFFDD400),
-                                    foregroundColor: const Color(0xFF433700),
-                                    elevation: 0,
-                                    minimumSize: const Size(180, 44),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        // Graphic Illustration Card (Bouncing Emoji)
-                        Expanded(
-                          flex: 2,
-                          child: ScaleTransition(
-                            scale: _emojiScale,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF6A5).withOpacity(0.4),
-                                borderRadius: BorderRadius.circular(32),
-                                border: Border.all(color: Colors.white, width: 4),
-                              ),
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  return Center(
-                                    child: Text(
-                                      _getEmojiForWord(result.original),
-                                      style: TextStyle(fontSize: constraints.maxHeight * 0.5),
-                                    ),
-                                  );
-                                }
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
+                  _buildTopSection(context, result, displayParts, ttsParts),
                   const SizedBox(height: 8),
-                  
-                  // Spelling Components Section (Discovery Mode)
-                  Expanded(
-                    flex: 4,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _revealedIndices.length == displayParts.length 
-                            ? "Giỏi quá! Chạm lại để nghe tiếp nha!"
-                            : "Chạm vào các ô để khám phá nào!",
-                          style: GoogleFonts.beVietnamPro(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF776300).withOpacity(0.6),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Expanded(
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.contain,
-                              child: Wrap(
-                                alignment: WrapAlignment.center,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 8,
-                                runSpacing: 12,
-                                children: List.generate(displayParts.length, (index) {
-                                  final part = displayParts[index];
-                                  final ttsPart = ttsParts.length > index ? ttsParts[index] : part;
-                                  final rotation = (index % 2 == 0 ? 1 : -1) * (index % 3 + 1) * math.pi / 180 * 1.5;
-                                  final isRevealed = _revealedIndices.contains(index);
-                                  final color = _stickerPalette[index % _stickerPalette.length];
-
-                                  return Transform.rotate(
-                                    angle: rotation,
-                                    child: Container(
-                                      constraints: const BoxConstraints(maxWidth: 160),
-                                      child: _StickerCard(
-                                        text: part,
-                                        isRevealed: isRevealed,
-                                        backgroundColor: color,
-                                        onTap: () {
-                                          setState(() {
-                                            _revealedIndices.add(index);
-                                          });
-                                          _speak(ttsPart);
-                                        },
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildSpellingSection(context, displayParts, ttsParts),
                 ],
               ),
             ),
 
-            // Close Button - Top Left
+            // Navigation Helpers
             Positioned(
               top: 16,
               left: 16,
-              child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF776300).withOpacity(0.1),
-                        blurRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.close, color: Color(0xFF776300), size: 24),
+              child: IconButton.filled(
+                onPressed: () => context.canPop() ? context.pop() : context.go('/'),
+                icon: const Icon(Icons.close),
+                style: IconButton.styleFrom(
+                  backgroundColor: colorScheme.surfaceContainerLowest,
+                  foregroundColor: colorScheme.primary,
+                  elevation: 4,
+                  shadowColor: colorScheme.primary.withOpacity(0.1),
                 ),
               ),
             ),
@@ -275,25 +344,21 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
       ),
     );
   }
-
-  @override
-  void dispose() {
-    _tts.stop();
-    _emojiController.dispose();
-    super.dispose();
-  }
 }
+
+// --- Specialized Components ---
 
 class _StickerCard extends StatefulWidget {
   final String text;
   final bool isRevealed;
+  final bool isActive;
   final Color backgroundColor;
   final VoidCallback onTap;
 
   const _StickerCard({
-    super.key, 
     required this.text, 
     required this.isRevealed,
+    this.isActive = false,
     required this.backgroundColor,
     required this.onTap,
   });
@@ -311,7 +376,7 @@ class _StickerCardState extends State<_StickerCard> with SingleTickerProviderSta
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 100),
+      duration: const Duration(milliseconds: 150),
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
@@ -319,7 +384,20 @@ class _StickerCardState extends State<_StickerCard> with SingleTickerProviderSta
   }
 
   @override
+  void didUpdateWidget(_StickerCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _controller.forward();
+    } else if (!widget.isActive && oldWidget.isActive) {
+      _controller.reverse();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return GestureDetector(
       onTapDown: (_) => _controller.forward(),
       onTapUp: (_) {
@@ -332,16 +410,20 @@ class _StickerCardState extends State<_StickerCard> with SingleTickerProviderSta
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: widget.isRevealed ? widget.backgroundColor : Colors.white,
+            color: widget.isRevealed ? widget.backgroundColor : colorScheme.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: widget.isRevealed ? Colors.white : const Color(0xFFE0E0E0), 
+              color: widget.isActive 
+                ? colorScheme.errorContainer 
+                : (widget.isRevealed ? colorScheme.surfaceContainerLowest : colorScheme.outlineVariant), 
               width: 3,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF3D3905).withOpacity(0.08),
-                blurRadius: 15,
+                color: widget.isActive 
+                  ? colorScheme.errorContainer.withOpacity(0.4) 
+                  : colorScheme.onSurface.withOpacity(0.08),
+                blurRadius: widget.isActive ? 20 : 15,
                 offset: const Offset(0, 8),
               ),
             ],
@@ -351,13 +433,11 @@ class _StickerCardState extends State<_StickerCard> with SingleTickerProviderSta
             child: widget.isRevealed 
               ? Text(
                   widget.text,
-                  style: GoogleFonts.beVietnamPro(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF006C95),
+                  style: theme.textTheme.displayMedium?.copyWith(
+                    color: colorScheme.secondary,
                   ),
                 )
-              : const Icon(Icons.help_outline_rounded, size: 48, color: Color(0xFFBDBDBD)),
+              : Icon(Icons.help_outline_rounded, size: 48, color: colorScheme.outlineVariant),
           ),
         ),
       ),
