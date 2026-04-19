@@ -7,6 +7,9 @@ import '../../features/dashboard/presentation/dashboard_screen.dart';
 
 import '../../features/games/presentation/word_builder_screen.dart';
 
+import '../../features/games/presentation/speed_duel_screen.dart';
+import '../../features/games/presentation/fishing_screen.dart';
+
 final appRouter = GoRouter(
   initialLocation: '/',
   routes: [
@@ -28,16 +31,8 @@ final appRouter = GoRouter(
       builder: (context, state) => const WordBuilderScreen(),
     ),
     GoRoute(
-      path: '/game/sound',
-      builder: (context, state) => Scaffold(
-        appBar: AppBar(title: const Text('Sound Match')),
-        body: Center(
-          child: ElevatedButton(
-            onPressed: () => context.pop(),
-            child: const Text('Back to Dashboard'),
-          ),
-        ),
-      ),
+      path: '/game/duel',
+      builder: (context, state) => const SpeedDuelScreen(),
     ),
     GoRoute(
       path: '/game/bubble',
@@ -50,6 +45,10 @@ final appRouter = GoRouter(
           ),
         ),
       ),
+    ),
+    GoRoute(
+      path: '/game/fishing',
+      builder: (context, state) => const FishingScreen(),
     ),
   ],
 );

@@ -1,9 +1,9 @@
 import 'package:unorm_dart/unorm_dart.dart' as unorm;
 
-/// Vietnamese syllable decomposition results.
+/// Vietnamese syllable decomposition result (matches Python dict structure)
 class DecomposedSyllable {
   final String initial;
-  final String nucleus;
+  final String nucleus;   // called "main" in Python
   final String ending;
   final String tone;
   final String original;
@@ -24,7 +24,8 @@ class DecomposedSyllable {
   String toString() => '[$original]: $spellString';
 }
 
-/// Constants for Vietnamese decomposition.
+// ==================== CONSTANTS ====================
+
 const List<String> INITIALS = [
   "ngh", "ng", "gh", "gi", "qu", "ch", "kh", "nh", "ph", "th", "tr",
   "b", "c", "d", "đ", "g", "h", "k", "l", "m", "n", "p", "q", "r",
@@ -33,30 +34,54 @@ const List<String> INITIALS = [
 
 const List<String> ENDINGS = ["ch", "nh", "ng", "c", "m", "n", "p", "t"];
 
-const Map<String, Map<String, String>> GI_SPECIAL_CASES = {
+const Map<String, Map<String, String>> _GI_SPECIAL_CASES = {
   "gì": {
-    "initial": "gi", "nucleus": "", "ending": "", "tone": "Huyền",
-    "spell": "gi huyền gì", "tts": "gi huyền gì",
+    "initial": "gi",
+    "main": "",
+    "ending": "",
+    "tone": "Huyền",
+    "spell": "gi huyền gì",
+    "tts": "gi huyền gì",
   },
   "gìn": {
-    "initial": "gi", "nucleus": "in", "ending": "", "tone": "Huyền",
-    "spell": "gi in gin huyền gìn", "tts": "gi in gin huyền gìn",
+    "initial": "gi",
+    "main": "in",
+    "ending": "",
+    "tone": "Huyền",
+    "spell": "gi in gin huyền gìn",
+    "tts": "gi in gin huyền gìn",
   },
   "giếng": {
-    "initial": "gi", "nucleus": "iêng", "ending": "", "tone": "Sắc",
-    "spell": "gi iêng giêng sắc giếng", "tts": "gi iêng giêng sắc giếng",
+    "initial": "gi",
+    "main": "iêng",
+    "ending": "",
+    "tone": "Sắc",
+    "spell": "gi iêng giêng sắc giếng",
+    "tts": "gi iêng giêng sắc giếng",
   },
   "giềng": {
-    "initial": "gi", "nucleus": "iêng", "ending": "", "tone": "Huyền",
-    "spell": "gi iêng giêng huyền giềng", "tts": "gi iêng giêng huyền giềng",
+    "initial": "gi",
+    "main": "iêng",
+    "ending": "",
+    "tone": "Huyền",
+    "spell": "gi iêng giêng huyền giềng",
+    "tts": "gi iêng giêng huyền giềng",
   },
   "giết": {
-    "initial": "gi", "nucleus": "iết", "ending": "", "tone": "Sắc",
-    "spell": "gi iết giết sắc giết", "tts": "gi iết giết sắc giết",
+    "initial": "gi",
+    "main": "iết",
+    "ending": "",
+    "tone": "Sắc",
+    "spell": "gi iết giết sắc giết",
+    "tts": "gi iết giết sắc giết",
   },
   "giêng": {
-    "initial": "gi", "nucleus": "iêng", "ending": "", "tone": "Ngang",
-    "spell": "gi iêng giêng", "tts": "gi iêng giêng",
+    "initial": "gi",
+    "main": "iêng",
+    "ending": "",
+    "tone": "Ngang",
+    "spell": "gi iêng giêng",
+    "tts": "gi iêng giêng",
   },
 };
 
@@ -70,9 +95,11 @@ const Map<String, String> TONE_MAP = {
 
 const String VOWEL_ORDER = "aăâeêoôơiuưy";
 
-/// Add Vietnamese tone mark to a syllable.
-String addTone(String syllable, String toneCode) {
-  if (syllable.isEmpty || toneCode == "" || toneCode == "0") return syllable;
+// ==================== HELPER FUNCTIONS ====================
+
+/// Add Vietnamese tone mark (exactly same logic as Python `add_tone`)
+String addTone(String syllable, String tone) {
+  if (syllable.isEmpty || tone == "" || tone == "0") return syllable;
 
   const toneSymbols = {
     "s": "\u0301", // sắc
@@ -82,16 +109,15 @@ String addTone(String syllable, String toneCode) {
     "j": "\u0303", // ngã
   };
 
-  final combining = toneSymbols[toneCode.toLowerCase()] ?? "";
-  if (combining == "") return syllable;
+  final combining = toneSymbols[tone.toLowerCase()] ?? "";
+  if (combining.isEmpty) return syllable;
 
-  // Find best vowel position
   int bestPos = -1;
   int bestPriority = VOWEL_ORDER.length;
 
   for (int i = 0; i < syllable.length; i++) {
-    final char = syllable[i].toLowerCase();
-    final priority = VOWEL_ORDER.indexOf(char);
+    final lower = syllable[i].toLowerCase();
+    final priority = VOWEL_ORDER.indexOf(lower);
     if (priority != -1 && priority < bestPriority) {
       bestPriority = priority;
       bestPos = i;
@@ -100,19 +126,33 @@ String addTone(String syllable, String toneCode) {
 
   if (bestPos == -1) return syllable;
 
-  return syllable.substring(0, bestPos + 1) + combining + syllable.substring(bestPos + 1);
+  return syllable.substring(0, bestPos + 1) +
+      combining +
+      syllable.substring(bestPos + 1);
 }
 
-/// Decompose a Vietnamese syllable.
+/// Main decomposition function - **Strictly follows Python logic**
 DecomposedSyllable decomposeVietnameseSyllable(String word) {
+  if (word.isEmpty) {
+    return DecomposedSyllable(
+      initial: "",
+      nucleus: "",
+      ending: "",
+      tone: "Ngang",
+      original: word,
+      spellString: "",
+      ttsString: "",
+    );
+  }
+
   final lowerWord = word.toLowerCase();
 
-  // Special cases
-  if (GI_SPECIAL_CASES.containsKey(lowerWord)) {
-    final sp = GI_SPECIAL_CASES[lowerWord]!;
+  // 1. Special cases for "gi"
+  if (_GI_SPECIAL_CASES.containsKey(lowerWord)) {
+    final sp = _GI_SPECIAL_CASES[lowerWord]!;
     return DecomposedSyllable(
       initial: sp["initial"]!,
-      nucleus: sp["nucleus"]!.isEmpty ? "(none)" : sp["nucleus"]!,
+      nucleus: sp["main"]!.isEmpty ? "(none)" : sp["main"]!,
       ending: sp["ending"]!.isEmpty ? "(none)" : sp["ending"]!,
       tone: sp["tone"]!,
       original: word,
@@ -121,65 +161,74 @@ DecomposedSyllable decomposeVietnameseSyllable(String word) {
     );
   }
 
-  // Normalize and extract tone
+  // 2. Normalize to NFD and extract tone
   final normalized = unorm.nfd(lowerWord);
-  String toneName = "Ngang";
+
+  String tone = "Ngang";
   for (final char in normalized.split('')) {
     if (TONE_MAP.containsKey(char)) {
-      toneName = TONE_MAP[char]!;
+      tone = TONE_MAP[char]!;
       break;
     }
   }
 
-  // Base form without tone
-  final baseStr = normalized.split('').where((c) => !TONE_MAP.containsKey(c)).join();
-  final chars = baseStr.split('');
+  // Remove tone marks
+  final base = normalized.split('').where((c) => !TONE_MAP.containsKey(c)).join();
 
-  // Initial consonant
+  // 3. Find initial consonant
+  final chars = base.split('');
   String initial = "";
-  int startIndex = 0;
-  final sortedInitials = List<String>.from(INITIALS)..sort((a, b) => b.length.compareTo(a.length));
-  
+  int i = 0;
+
+  final sortedInitials = List<String>.from(INITIALS)
+    ..sort((a, b) => b.length.compareTo(a.length));
+
   for (final init in sortedInitials) {
-    if (chars.length >= init.length && chars.sublist(0, init.length).join() == init) {
+    if (chars.length >= init.length &&
+        chars.sublist(0, init.length).join() == init) {
       initial = init;
-      startIndex = init.length;
+      i = init.length;
       break;
     }
   }
 
-  List<String> remaining = chars.sublist(startIndex);
+  List<String> remaining = chars.sublist(i);
 
-  // Ending consonant
+  // 4. Find ending consonant
   String ending = "";
-  final sortedEndings = List<String>.from(ENDINGS)..sort((a, b) => b.length.compareTo(a.length));
-  
   if (remaining.isNotEmpty) {
+    final sortedEndings = List<String>.from(ENDINGS)
+      ..sort((a, b) => b.length.compareTo(a.length));
+
     for (final end in sortedEndings) {
-      if (remaining.length >= end.length && remaining.sublist(remaining.length - end.length).join() == end) {
+      final endLen = end.length;
+      if (remaining.length >= endLen &&
+          remaining.sublist(remaining.length - endLen).join() == end) {
         ending = end;
-        remaining = remaining.sublist(0, remaining.length - end.length);
+        remaining = remaining.sublist(0, remaining.length - endLen);
         break;
       }
     }
   }
 
-  // Nucleus
-  String nucleus = remaining.join();
-  String nucleusNfc = unorm.nfc(nucleus);
+  // 5. Nucleus (main vowel)
+  final main = remaining.join();
+  final mainNfc = unorm.nfc(main);
 
-  // Build spelling string
+  // 6. Build spelling parts (exactly as Python)
   List<String> parts = [];
-  
+
   // Handle "qu" special case
+  String currentMain = mainNfc;
   if (initial == "qu" && ending.isNotEmpty) {
-    nucleusNfc = "u" + nucleusNfc;
+    currentMain = "u" + mainNfc;
   }
 
-  // 1. Spell nucleus
-  if ((nucleusNfc + ending).length > 1) {
-    for (final char in nucleusNfc.split('')) {
-      parts.add(char);
+  // 1. Spell main vowel letter by letter
+  final mainEndingTemp = currentMain + ending;
+  if (mainEndingTemp.length > 1) {
+    for (final letter in currentMain.split('')) {
+      parts.add(letter);
     }
   }
 
@@ -189,7 +238,7 @@ DecomposedSyllable decomposeVietnameseSyllable(String word) {
   }
 
   // 3. Main + Ending together
-  String mainEnding = nucleusNfc + ending;
+  final mainEnding = currentMain + ending;
   if (mainEnding.length > 1) {
     parts.add(mainEnding);
   }
@@ -200,79 +249,109 @@ DecomposedSyllable decomposeVietnameseSyllable(String word) {
     parts.add(initial);
     parts.add(mainEnding);
 
+    // Fix double-u for "qu"
+    String finalMainEnding = mainEnding;
     if (initial == "qu" && ending.isNotEmpty) {
-      mainEnding = mainEnding.substring(1);
+      finalMainEnding = mainEnding.substring(1);
     }
 
-    syllableNoTone = initial + mainEnding;
+    syllableNoTone = initial + finalMainEnding;
     if (syllableNoTone.isNotEmpty) {
       parts.add(syllableNoTone);
     }
+  }
 
-    // 5. Add tone
-    if (toneName != "Ngang") {
-      parts.add(toneName.toLowerCase());
-    }
+  // 5. Add tone name
+  if (tone != "Ngang") {
+    parts.add(tone.toLowerCase());
+  }
 
-    // 6. Word with tone
-    if (toneName != "Ngang") {
-      parts.add(word);
-    }
+  // 6. Final word with tone
+  if (tone != "Ngang") {
+    parts.add(word);
   }
 
   final spellString = parts.join(' ');
 
-  // Build TTS string
+  // 7. Build TTS string (critical part - exactly as Python)
   List<String> ttsParts = List.from(parts);
-  for (int i = 0; i < ttsParts.length; i++) {
-    String token = ttsParts[i];
 
-    // Add 'ờ' for consonants
+  for (int idx = 0; idx < ttsParts.length; idx++) {
+    String token = ttsParts[idx];
+
+    // Add "ờ" to consonants
     if (INITIALS.contains(token) || ENDINGS.contains(token)) {
       if (token == "k") {
-        ttsParts[i] = "ca";
+        ttsParts[idx] = "ca";
       } else if (token == "ngh") {
-        ttsParts[i] = "ngờ";
+        ttsParts[idx] = "ngờ";
       } else if (token == "gh") {
-        ttsParts[i] = "gờ";
+        ttsParts[idx] = "gờ";
       } else if (token != "gi") {
-        ttsParts[i] = token + "ờ";
+        ttsParts[idx] = token + "ờ";
       }
     }
 
-    // Stop consonants adjustment
-    final stopConsonants = ["ch", "c", "p", "t"];
-    if ((token == mainEnding || token == syllableNoTone) && stopConsonants.contains(ending)) {
-      ttsParts[i] = addTone(ttsParts[i], "s");
+    // Special case "i" and "y"
+    if (token == "i" || token == "y") {
+      ttsParts[idx] += ttsParts[idx];
     }
 
-    // Special qu + stop
+    // Add sắc tone to closed syllables
+    if ((token == mainEnding || token == syllableNoTone) &&
+        ["ch", "c", "p", "t"].contains(ending)) {
+      ttsParts[idx] = addTone(ttsParts[idx], "s");
+    }
+
+    // Special case: "qu" with stop ending
     if (initial == "qu" && ending.isNotEmpty) {
-       if (token.length > 1 && token.substring(1) == mainEnding && stopConsonants.contains(ending)) {
-         ttsParts[i] = addTone(ttsParts[i], "s");
-       }
+      if (ttsParts[idx].length > 1 &&
+          ttsParts[idx].substring(1) == mainEnding &&
+          ["ch", "c", "p", "t"].contains(ending)) {
+        ttsParts[idx] = addTone(ttsParts[idx], "s");
+      }
     }
   }
 
+  final ttsString = ttsParts.join(' ');
+
   return DecomposedSyllable(
-    initial: unorm.nfc(initial.isEmpty ? "(none)" : initial),
-    nucleus: unorm.nfc(nucleusNfc.isEmpty ? "(none)" : nucleusNfc),
-    ending: unorm.nfc(ending.isEmpty ? "(none)" : ending),
-    tone: toneName,
+    initial: initial.isEmpty ? "(none)" : unorm.nfc(initial),
+    nucleus: mainNfc.isEmpty ? "(none)" : unorm.nfc(mainNfc),
+    ending: ending.isEmpty ? "(none)" : unorm.nfc(ending),
+    tone: tone,
     original: unorm.nfc(word),
     spellString: unorm.nfc(spellString),
-    ttsString: unorm.nfc(ttsParts.join(' ')),
+    ttsString: unorm.nfc(ttsString),
   );
 }
 
-String getSpellingForText(String text) {
-  final words = RegExp(r"[\w]+", unicode: true).allMatches(text).map((m) => m.group(0)!).toList();
-  List<String> ttsStrings = [];
+/// Get full spelling for a sentence (now uses safer splitting)
+DecomposedSyllable getSpellingForText(String text) {
+  // Use the same regex style as Python, but more robust for Vietnamese
+  final RegExp regex = RegExp(r'[\p{L}\p{N}]+', unicode: true);
+  final words = regex
+      .allMatches(text)
+      .map((m) => m.group(0)!)
+      .where((w) => w.trim().isNotEmpty)
+      .toList();
+
+  final ttsParts = <String>[];
+  final spellParts = <String>[];
   for (final w in words) {
     final result = decomposeVietnameseSyllable(w);
     if (result.ttsString.isNotEmpty) {
-      ttsStrings.add(result.ttsString);
+      ttsParts.add(result.ttsString);
+      spellParts.add(result.spellString);
     }
   }
-  return ttsStrings.join(". ");
+  return DecomposedSyllable(
+    initial: "(none)",
+    nucleus: "(none)",
+    ending: "(none)",
+    tone: "(none)",
+    original: text,
+    spellString: spellParts.join(' '),
+    ttsString: ttsParts.join(' '),
+  );
 }

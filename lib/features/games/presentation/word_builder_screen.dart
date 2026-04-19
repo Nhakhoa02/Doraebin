@@ -30,6 +30,8 @@ class _WordBuilderScreenState extends State<WordBuilderScreen> with TickerProvid
   bool _isSuccess = false;
   int? _activeSpellingIndex;
   List<String> _spellingDisplayTokens = [];
+  bool _isSpellingActive = false;
+  bool _skipRequested = false;
 
   @override
   void initState() {
@@ -51,6 +53,7 @@ class _WordBuilderScreenState extends State<WordBuilderScreen> with TickerProvid
   Future<void> _initTts() async {
     await _tts.setLanguage("vi-VN");
     await _tts.setPitch(1.1);
+    await _tts.awaitSpeakCompletion(true);
   }
 
   @override
@@ -64,6 +67,8 @@ class _WordBuilderScreenState extends State<WordBuilderScreen> with TickerProvid
     _isSuccess = false;
     _activeSpellingIndex = null;
     _spellingDisplayTokens = [];
+    _isSpellingActive = false;
+    _skipRequested = false;
     _celebrationController.reset();
 
     final rand = Random();
@@ -159,6 +164,8 @@ class _WordBuilderScreenState extends State<WordBuilderScreen> with TickerProvid
     
     setState(() {
       _isSuccess = true;
+      _isSpellingActive = true;
+      _skipRequested = false;
       _activeSpellingIndex = null;
       _spellingDisplayTokens = displayTokens;
     });
@@ -167,19 +174,24 @@ class _WordBuilderScreenState extends State<WordBuilderScreen> with TickerProvid
       await Future.delayed(const Duration(milliseconds: 600));
       
       for (int i = 0; i < ttsTokens.length; i++) {
-        if (!mounted) return;
+        if (!mounted || _skipRequested) break;
         
         setState(() => _activeSpellingIndex = i);
         
         await _tts.speak(ttsTokens[i]);
-        // Duration based on token length
-        await Future.delayed(Duration(milliseconds: ttsTokens[i].length > 5 ? 900 : 700));
+        // Mandatory pause between parts as requested (0.20s)
+        // await Future.delayed(const Duration(milliseconds: 200));
       }
       
-      setState(() => _activeSpellingIndex = null);
+      if (!mounted) return;
       
     } catch (e) {
       debugPrint("Spelling TTS Error: $e");
+    } finally {
+      setState(() {
+        _isSpellingActive = false;
+        _activeSpellingIndex = null;
+      });
     }
 
     _celebrationController.forward().then((_) {
@@ -189,6 +201,11 @@ class _WordBuilderScreenState extends State<WordBuilderScreen> with TickerProvid
         }
       });
     });
+  }
+
+  void _skipSpelling() {
+    setState(() => _skipRequested = true);
+    _tts.stop();
   }
 
   String _getEmojiForWord(String word) {
@@ -380,18 +397,31 @@ class _WordBuilderScreenState extends State<WordBuilderScreen> with TickerProvid
                                 ),
                               ),
                               const SizedBox(height: 32),
-                              ElevatedButton.icon(
-                                onPressed: () => _tts.speak(_targetWord),
-                                icon: const Icon(Icons.volume_up_rounded, size: 32),
-                                label: const Text("Nghe", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: colorScheme.secondaryContainer,
-                                  foregroundColor: colorScheme.onSecondaryContainer,
-                                  minimumSize: const Size(200, 70),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                                  elevation: 4,
-                                ),
-                              ),
+                              _isSpellingActive 
+                                ? ElevatedButton.icon(
+                                    onPressed: _skipSpelling,
+                                    icon: const Icon(Icons.skip_next_rounded, size: 32),
+                                    label: const Text("Bỏ qua", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: colorScheme.tertiaryContainer,
+                                      foregroundColor: colorScheme.onTertiaryContainer,
+                                      minimumSize: const Size(200, 70),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                      elevation: 4,
+                                    ),
+                                  )
+                                : ElevatedButton.icon(
+                                    onPressed: () => _tts.speak(_targetWord),
+                                    icon: const Icon(Icons.volume_up_rounded, size: 32),
+                                    label: const Text("Nghe", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: colorScheme.secondaryContainer,
+                                      foregroundColor: colorScheme.onSecondaryContainer,
+                                      minimumSize: const Size(200, 70),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                      elevation: 4,
+                                    ),
+                                  ),
                             ],
                           ),
                         ),

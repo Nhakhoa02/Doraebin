@@ -43,6 +43,10 @@ dependencies:
   flutter_tts: ^4.2.5
   google_fonts: ^8.0.2
   unorm_dart: ^0.3.2
+  speech_to_text: ^7.3.0
+  permission_handler: ^12.0.1
+  lottie: ^3.3.3
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:

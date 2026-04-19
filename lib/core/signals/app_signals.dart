@@ -19,7 +19,7 @@ void refreshHistory() {
 }
 
 void selectWord(String text) {
-  final result = decomposeVietnameseSyllable(text);
+  final result = getSpellingForText(text);
   currentWordSignal.value = result;
   
   // Add to history if not there
