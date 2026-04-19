@@ -68,7 +68,7 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
                 Text(
                   widget.lesson.title,
                   style: theme.textTheme.headlineSmall?.copyWith(
-                    color: widget.lesson.color.shade900,
+                    color: HSLColor.fromColor(widget.lesson.color).withLightness(0.2).toColor(),
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
