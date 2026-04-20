@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../domain/category_assets.dart';
 import '../../domain/lesson_models.dart';
 import 'dot_lottie_icon.dart';
@@ -87,16 +88,43 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
     );
   }
 
-  /// Renders a Lottie animation if a .lottie asset is registered for this
+  /// Renders a visual asset (Lottie, SVG, or Image) if registered for this
   /// category, otherwise falls back to the emoji text.
   Widget _buildIcon() {
+    // 1. Try Lottie
     final lottieAsset = CategoryAssets.getLottieAsset(widget.lesson.id);
-
     if (lottieAsset != null) {
       return DotLottieIcon(
         assetPath: lottieAsset,
         size: 72,
         fallback: _emojiIcon(),
+      );
+    }
+
+    // 2. Try SVG
+    final svgAsset = CategoryAssets.getSvgAsset(widget.lesson.id);
+    if (svgAsset != null) {
+      return SvgPicture.asset(
+        svgAsset,
+        width: 72,
+        height: 72,
+        fit: BoxFit.contain,
+        placeholderBuilder: (context) => _emojiIcon(),
+      );
+    }
+
+    // 3. Try Image
+    final imageAsset = CategoryAssets.getImageAsset(widget.lesson.id);
+    if (imageAsset != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Image.asset(
+          imageAsset,
+          width: 72,
+          height: 72,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stack) => _emojiIcon(),
+        ),
       );
     }
 

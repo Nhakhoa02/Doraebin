@@ -69,8 +69,8 @@ class DatabaseService {
       ['cam_xuc', 'Cảm xúc', '😊', '#FF4081'],
       ['nghe_nghiep', 'Nghề nghiệp', '👩‍⚕️', '#9E9E9E'],
       ['alphabet', 'Bảng chữ cái', '🔤', '#03A9F4'],
-      ['am_tiet', 'Âm tiết', '🔤', '#03A9F4'],
-      ['custom', 'Khác', '✨', '#9E9E9E'],
+      // ['am_tiet', 'Âm tiết', '🔤', '#03A9F4'],
+      // ['custom', 'Khác', '✨', '#9E9E9E'],
     ];
 
     // Clean up old renamed table IDs to avoid cluttering the UI
