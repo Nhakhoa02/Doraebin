@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../domain/category_assets.dart';
 import '../../domain/lesson_models.dart';
+import 'dot_lottie_icon.dart';
 
 class LessonCard extends StatefulWidget {
   final Lesson lesson;
@@ -35,6 +37,7 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final darkColor = HSLColor.fromColor(widget.lesson.color).withLightness(0.2).toColor();
     
     return GestureDetector(
       onTapDown: (_) => _controller.forward(),
@@ -47,9 +50,9 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
         scale: _scaleAnimation,
         child: Container(
           decoration: BoxDecoration(
-            color: widget.lesson.color.withOpacity(0.2),
+            color: widget.lesson.color.withOpacity(0.15),
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: widget.lesson.color.withOpacity(0.5), width: 2),
+            border: Border.all(color: widget.lesson.color.withOpacity(0.4), width: 2),
             boxShadow: [
               BoxShadow(
                 color: widget.lesson.color.withOpacity(0.1),
@@ -59,19 +62,22 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(widget.lesson.emoji, style: const TextStyle(fontSize: 64)),
-                const SizedBox(height: 16),
+                // Icon: Lottie animation or emoji fallback
+                _buildIcon(),
+                const SizedBox(height: 12),
                 Text(
                   widget.lesson.title,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    color: HSLColor.fromColor(widget.lesson.color).withLightness(0.2).toColor(),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: darkColor,
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -79,5 +85,25 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
         ),
       ),
     );
+  }
+
+  /// Renders a Lottie animation if a .lottie asset is registered for this
+  /// category, otherwise falls back to the emoji text.
+  Widget _buildIcon() {
+    final lottieAsset = CategoryAssets.getLottieAsset(widget.lesson.id);
+
+    if (lottieAsset != null) {
+      return DotLottieIcon(
+        assetPath: lottieAsset,
+        size: 72,
+        fallback: _emojiIcon(),
+      );
+    }
+
+    return _emojiIcon();
+  }
+
+  Widget _emojiIcon() {
+    return Text(widget.lesson.emoji, style: const TextStyle(fontSize: 56));
   }
 }
