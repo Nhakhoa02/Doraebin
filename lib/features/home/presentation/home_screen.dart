@@ -69,11 +69,47 @@ class _HomeScreenState extends State<HomeScreen> {
     final colorScheme = theme.colorScheme;
     final lessons = lessonsSignal.watch(context);
 
+    // Dynamic background color based on selection
+    final bgColor = _selectedLesson != null 
+        ? HSLColor.fromColor(_selectedLesson!.color).withLightness(0.95).toColor()
+        : const Color(0xFFF0F9FF); // Soft blue for "Lessons" view
+
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      backgroundColor: bgColor,
       body: SafeArea(
         child: Stack(
           children: [
+            // Background Decorations (Modern Cartoon Style)
+            Positioned(
+              top: -50,
+              right: -50,
+              child: _CircularDecoration(color: colorScheme.primary.withOpacity(0.05), size: 300),
+            ),
+            Positioned(
+              bottom: 40,
+              left: -30,
+              child: _CircularDecoration(color: colorScheme.tertiary.withOpacity(0.05), size: 200),
+            ),
+            
+            // Random floating "clouds" or icons for kids vibe
+            if (_viewIndex == 0) ...[
+              const Positioned(
+                top: 100,
+                left: 100,
+                child: Opacity(opacity: 0.3, child: Text("☁️", style: TextStyle(fontSize: 40))),
+              ),
+              const Positioned(
+                top: 150,
+                right: 120,
+                child: Opacity(opacity: 0.3, child: Text("✨", style: TextStyle(fontSize: 30))),
+              ),
+              const Positioned(
+                bottom: 100,
+                right: 150,
+                child: Opacity(opacity: 0.3, child: Text("🎈", style: TextStyle(fontSize: 40))),
+              ),
+            ],
+
             // Body Content
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
@@ -92,17 +128,34 @@ class _HomeScreenState extends State<HomeScreen> {
               left: 80,
               right: 80,
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Center(
-                  child: Text(
-                    _viewIndex == 0 
-                      ? "Chọn bài học để bắt đầu nhé!" 
-                      : (_selectedLesson?.title ?? "Chọn từ để học"),
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      color: _selectedLesson != null 
-                        ? HSLColor.fromColor(_selectedLesson!.color).withLightness(0.2).toColor()
-                        : colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(40),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_selectedLesson?.color ?? colorScheme.primary).withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      _viewIndex == 0 
+                        ? "Chọn bài học để bắt đầu nhé!" 
+                        : (_selectedLesson?.title ?? "Chọn từ để học"),
+                      style: GoogleFonts.itim(
+                        textStyle: theme.textTheme.headlineSmall?.copyWith(
+                          color: _selectedLesson != null 
+                            ? HSLColor.fromColor(_selectedLesson!.color).withLightness(0.2).toColor()
+                            : colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 28,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -113,14 +166,23 @@ class _HomeScreenState extends State<HomeScreen> {
             Positioned(
               top: 16,
               left: 16,
-              child: IconButton.filled(
-                onPressed: _onBack,
-                icon: const Icon(Icons.arrow_back_rounded),
-                style: IconButton.styleFrom(
-                  backgroundColor: colorScheme.surfaceContainerLowest,
-                  foregroundColor: colorScheme.primary,
-                  elevation: 4,
-                  shadowColor: colorScheme.primary.withOpacity(0.1),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  onPressed: _onBack,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  color: colorScheme.primary,
+                  iconSize: 28,
                 ),
               ),
             ),
@@ -198,6 +260,25 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CircularDecoration extends StatelessWidget {
+  final Color color;
+  final double size;
+
+  const _CircularDecoration({required this.color, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../domain/category_assets.dart';
 import '../../domain/lesson_models.dart';
 import 'dot_lottie_icon.dart';
@@ -38,7 +39,9 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final darkColor = HSLColor.fromColor(widget.lesson.color).withLightness(0.2).toColor();
+    final baseColor = widget.lesson.color;
+    final darkColor = HSLColor.fromColor(baseColor).withLightness(0.2).toColor();
+    final deepShadowColor = HSLColor.fromColor(baseColor).withLightness(0.4).toColor();
     
     return GestureDetector(
       onTapDown: (_) => _controller.forward(),
@@ -49,81 +52,123 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
       onTapCancel: () => _controller.reverse(),
       child: ScaleTransition(
         scale: _scaleAnimation,
-        child: Container(
-          decoration: BoxDecoration(
-            color: widget.lesson.color.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: widget.lesson.color.withOpacity(0.4), width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: widget.lesson.color.withOpacity(0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+        child: Stack(
+          children: [
+            // Bottom "3D" depth layer
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              decoration: BoxDecoration(
+                color: deepShadowColor,
+                borderRadius: BorderRadius.circular(32),
               ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Icon: Lottie animation or emoji fallback
-                _buildIcon(),
-                const SizedBox(height: 12),
-                Text(
-                  widget.lesson.title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: darkColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
             ),
-          ),
+            // Top layer (the actual card)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    HSLColor.fromColor(baseColor).withLightness(0.95).toColor(),
+                    HSLColor.fromColor(baseColor).withLightness(0.85).toColor(),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.9),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Icon: Lottie animation or fallback
+                    Expanded(
+                      flex: 3,
+                      child: Center(child: _buildIcon()),
+                    ),
+                    const SizedBox(height: 8),
+                    // Title
+                    Flexible(
+                      flex: 1,
+                      child: Text(
+                        widget.lesson.title,
+                        style: GoogleFonts.itim(
+                          textStyle: theme.textTheme.titleMedium?.copyWith(
+                            color: darkColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Renders a visual asset (Lottie, SVG, or Image) if registered for this
-  /// category, otherwise falls back to the emoji text.
+  /// Renders a visual asset (Lottie, SVG, or Image)
   Widget _buildIcon() {
-    // 1. Try Lottie
     final lottieAsset = CategoryAssets.getLottieAsset(widget.lesson.id);
     if (lottieAsset != null) {
       return DotLottieIcon(
         assetPath: lottieAsset,
-        size: 72,
+        size: 100,
         fallback: _emojiIcon(),
       );
     }
 
-    // 2. Try SVG
     final svgAsset = CategoryAssets.getSvgAsset(widget.lesson.id);
     if (svgAsset != null) {
       return SvgPicture.asset(
         svgAsset,
-        width: 72,
-        height: 72,
+        width: 80,
+        height: 80,
         fit: BoxFit.contain,
         placeholderBuilder: (context) => _emojiIcon(),
       );
     }
 
-    // 3. Try Image
     final imageAsset = CategoryAssets.getImageAsset(widget.lesson.id);
     if (imageAsset != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Image.asset(
-          imageAsset,
-          width: 72,
-          height: 72,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stack) => _emojiIcon(),
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+            )
+          ]
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Image.asset(
+            imageAsset,
+            width: 80,
+            height: 80,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stack) => _emojiIcon(),
+          ),
         ),
       );
     }
@@ -132,6 +177,9 @@ class _LessonCardState extends State<LessonCard> with SingleTickerProviderStateM
   }
 
   Widget _emojiIcon() {
-    return Text(widget.lesson.emoji, style: const TextStyle(fontSize: 56));
+    return Text(
+      widget.lesson.emoji, 
+      style: const TextStyle(fontSize: 64),
+    );
   }
 }

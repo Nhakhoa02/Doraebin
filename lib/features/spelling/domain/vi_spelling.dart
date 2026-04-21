@@ -271,9 +271,12 @@ DecomposedSyllable decomposeVietnameseSyllable(String word) {
     parts.add(word);
   }
 
+  // 7. Single letter (alphabet case)
+  if (word.length == 1) parts = [word];
+
   final spellString = parts.join(' ');
 
-  // 7. Build TTS string (critical part - exactly as Python)
+  // 8. Build TTS string
   List<String> ttsParts = List.from(parts);
 
   for (int idx = 0; idx < ttsParts.length; idx++) {
@@ -293,9 +296,15 @@ DecomposedSyllable decomposeVietnameseSyllable(String word) {
     }
 
     // Special case "i" and "y"
-    if (token == "i" || token == "y") {
+    if ((token == "i" || token == "y") && (ttsParts.length > 1)){
       ttsParts[idx] += ttsParts[idx];
     }
+
+    // Special case "q"
+    if (token == "q"){
+      ttsParts[idx] = "cu";
+    }
+
 
     // Add sắc tone to closed syllables
     if ((token == mainEnding || token == syllableNoTone) &&
