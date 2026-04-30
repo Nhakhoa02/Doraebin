@@ -463,6 +463,9 @@ class SpeedDuelController {
 
       _emit(_state.copyWith(isListening: true, recognizedWords: ""));
 
+      int count = 0;
+      int targetLength = _state.targetWord!.toLowerCase().split(' ').length;
+
       await _speech.listen(
         onResult: (result) {
           if (_state.phase != GamePhase.playing || _state.roundWinners.isNotEmpty) {
@@ -473,9 +476,18 @@ class SpeedDuelController {
           final words = result.recognizedWords;
           _emit(_state.copyWith(recognizedWords: words));
 
+          // Split words into list
+          final wordList = words.toLowerCase().split(' ');
+
+          // Take the last (targetLength) words safely
+          final startIndex = wordList.length - targetLength;
+          final recentWords = wordList
+              .sublist(startIndex < 0 ? 0 : startIndex)
+              .join(' ');
+
           // Check if the kid read the word correctly
           if (_state.targetWord != null &&
-              words.toLowerCase().contains(_state.targetWord!.toLowerCase())) {
+              recentWords.contains(_state.targetWord!.toLowerCase())) {
             // Kid won! Also roll for bots independently
             final botWinners = _rollForBots();
             _resolveRound(winnerNames: botWinners, isKidWin: true);
