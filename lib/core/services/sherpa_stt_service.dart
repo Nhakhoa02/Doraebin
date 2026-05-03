@@ -17,14 +17,22 @@ import '../onnx/utils.dart';
 ///   4. When VAD emits a completed speech segment, a final decode is run
 ///      and the result is delivered via the callback
 class SherpaSTTService implements ISTTService {
-  sherpa_onnx.OfflineRecognizer? _recognizer;
+  final int type;
+  final bool online;
+
+  sherpa_onnx.OfflineRecognizer? _offlineRecognizer;
+  sherpa_onnx.OnlineRecognizer? _onlineRecognizer;
+  sherpa_onnx.OnlineStream? _onlineStream;
   sherpa_onnx.VoiceActivityDetector? _vad;
+
   final AudioRecorder _audioRecorder = AudioRecorder();
   StreamSubscription? _audioSubscription;
 
   bool _isListening = false;
   bool _isAvailable = false;
   bool _isInitialized = false;
+
+  SherpaSTTService({this.type = 0, this.online = false});
 
   // Callbacks stored for the duration of a listen() session
   Function(String)? _onResult;
@@ -63,27 +71,44 @@ class SherpaSTTService implements ISTTService {
     try {
       sherpa_onnx.initBindings();
 
-      // Initialize Offline Recognizer (Moonshine)
-      print('[SherpaSTT] Loading offline model...');
-      final modelConfig = await getOfflineModelConfig(type: 0);
-      final config = sherpa_onnx.OfflineRecognizerConfig(
-        model: modelConfig,
-      );
-      _recognizer = sherpa_onnx.OfflineRecognizer(config);
-      print('[SherpaSTT] Offline recognizer created OK');
+      if (online) {
+        // --- TRUE STREAMING MODE ---
+        print('[SherpaSTT] Loading online streaming model (type: $type)...');
+        final modelConfig = await getOnlineModelConfig(type: type);
+        final config = sherpa_onnx.OnlineRecognizerConfig(
+          model: modelConfig,
+          enableEndpoint: true,
+          rule1MinTrailingSilence: 2.4,
+          rule2MinTrailingSilence: 1.2,
+          rule3MinUtteranceLength: 300,
+        );
+        _onlineRecognizer = sherpa_onnx.OnlineRecognizer(config);
+        _onlineStream = _onlineRecognizer!.createStream();
+        print('[SherpaSTT] Online recognizer created OK');
+      } else {
+        // --- SIMULATED STREAMING MODE (VAD + OFFLINE) ---
+        print('[SherpaSTT] Loading offline model (type: $type)...');
+        final modelConfig = await getOfflineModelConfig(type: type);
+        final config = sherpa_onnx.OfflineRecognizerConfig(
+          model: modelConfig,
+        );
+        _offlineRecognizer = sherpa_onnx.OfflineRecognizer(config);
+        print('[SherpaSTT] Offline recognizer created OK');
 
-      // Initialize VAD (Silero VAD)
-      print('[SherpaSTT] Loading VAD model...');
-      final vadConfig = await getVadModelConfig(type: 0);
-      _vad = sherpa_onnx.VoiceActivityDetector(
-        config: vadConfig,
-        bufferSizeInSeconds: 30,
-      );
-      print('[SherpaSTT] VAD created OK');
+        // Initialize VAD (Silero VAD)
+        print('[SherpaSTT] Loading VAD model...');
+        final vadConfig = await getVadModelConfig(type: 0);
+        _vad = sherpa_onnx.VoiceActivityDetector(
+          config: vadConfig,
+          bufferSizeInSeconds: 30,
+        );
+        print('[SherpaSTT] VAD created OK');
+      }
 
       _isAvailable = true;
       _isInitialized = true;
-      print('[SherpaSTT] ✅ Initialized (VAD + Offline Moonshine)');
+      print(
+          '[SherpaSTT] ✅ Initialized (${online ? "TRUE STREAMING" : "VAD + OFFLINE SIMULATION"})');
       return true;
     } catch (e, st) {
       print('[SherpaSTT] ❌ Init error: $e\n$st');
@@ -98,7 +123,9 @@ class SherpaSTTService implements ISTTService {
     Function(dynamic)? onError,
     Function(String)? onStatus,
   }) async {
-    if (!_isAvailable || _recognizer == null || _vad == null) {
+    if (!_isAvailable ||
+        (online && _onlineRecognizer == null) ||
+        (!online && (_offlineRecognizer == null || _vad == null))) {
       final ok = await initialize();
       if (!ok) {
         onError?.call('Failed to initialize Sherpa ONNX');
@@ -127,7 +154,13 @@ class SherpaSTTService implements ISTTService {
     _resultAdded = false;
     _isProcessing = false;
     _diagCounter = 0;
-    _vad!.reset();
+
+    if (online) {
+      _onlineStream?.free();
+      _onlineStream = _onlineRecognizer!.createStream();
+    } else {
+      _vad!.reset();
+    }
 
     const config = RecordConfig(
       encoder: AudioEncoder.pcm16bits,
@@ -144,7 +177,12 @@ class SherpaSTTService implements ISTTService {
         (Uint8List data) {
           if (!_isListening) return;
           final samples = convertBytesToFloat32(data);
-          _audioBuffer.addAll(samples);
+          if (online) {
+            _onlineStream?.acceptWaveform(
+                samples: samples, sampleRate: _sampleRate);
+          } else {
+            _audioBuffer.addAll(samples);
+          }
         },
         onError: (e) {
           print('[SherpaSTT] ❌ Audio stream error: $e');
@@ -163,17 +201,22 @@ class SherpaSTTService implements ISTTService {
     }
   }
 
-  /// Core processing loop — mirrors the Kotlin inner while-loop.
+  /// Core processing loop
   void _processAudioBuffer() {
-    if (!_isListening || _vad == null || _recognizer == null) return;
+    if (!_isListening) return;
+    if (online && _onlineRecognizer == null) return;
+    if (!online && (_vad == null || _offlineRecognizer == null)) return;
+
     // Prevent re-entrant calls (decode can be slow)
     if (_isProcessing) return;
     _isProcessing = true;
 
     try {
-      _feedVadAndDetect();
-      _runPeriodicAsr();
-      _processCompletedSegments();
+      if (online) {
+        _processOnline();
+      } else {
+        _processOfflineWithVad();
+      }
     } catch (e) {
       print('[SherpaSTT] ❌ Process error: $e');
     } finally {
@@ -181,7 +224,35 @@ class SherpaSTTService implements ISTTService {
     }
   }
 
-  /// Step 1+2: Feed audio to VAD and detect speech onset
+  /// True streaming processing logic
+  void _processOnline() {
+    while (_onlineRecognizer!.isReady(_onlineStream!)) {
+      _onlineRecognizer!.decode(_onlineStream!);
+    }
+
+    final result = _onlineRecognizer!.getResult(_onlineStream!);
+    final text = result.text.trim();
+
+    if (text.isNotEmpty && text != _lastText) {
+      _lastText = text;
+      _onResult?.call(_lastText);
+      print('[SherpaSTT] 📝 Online: "$text"');
+    }
+
+    if (_onlineRecognizer!.isEndpoint(_onlineStream!)) {
+      _onlineRecognizer!.reset(_onlineStream!);
+      print('[SherpaSTT] 🏁 Online: Endpoint detected');
+    }
+  }
+
+  /// Simulated streaming logic (VAD + Offline)
+  void _processOfflineWithVad() {
+    _feedVadAndDetect();
+    _runPeriodicAsr();
+    _processCompletedSegments();
+  }
+
+  /// Step 1+2: Feed audio to VAD and detect speech onset (Offline mode only)
   void _feedVadAndDetect() {
     int windowsProcessed = 0;
     while (_bufferOffset + _vadWindowSize <= _audioBuffer.length) {
@@ -204,7 +275,7 @@ class SherpaSTTService implements ISTTService {
       }
     }
 
-    // Diagnostic: log every ~2 seconds (20 ticks at 100ms interval)
+    // Diagnostic: log every ~2 seconds
     _diagCounter++;
     if (_diagCounter % 20 == 0) {
       print('[SherpaSTT] 📊 buf=${_audioBuffer.length} '
@@ -216,7 +287,7 @@ class SherpaSTTService implements ISTTService {
     }
   }
 
-  /// Step 3: Run ASR periodically during active speech (~every 200ms)
+  /// Step 3: Run ASR periodically during active speech (Offline mode only)
   void _runPeriodicAsr() {
     if (!_isSpeechStarted) return;
 
@@ -232,10 +303,10 @@ class SherpaSTTService implements ISTTService {
         speechSamples[i] = _audioBuffer[_speechStartOffset + i];
       }
 
-      final stream = _recognizer!.createStream();
+      final stream = _offlineRecognizer!.createStream();
       stream.acceptWaveform(samples: speechSamples, sampleRate: _sampleRate);
-      _recognizer!.decode(stream);
-      final result = _recognizer!.getResult(stream);
+      _offlineRecognizer!.decode(stream);
+      final result = _offlineRecognizer!.getResult(stream);
       stream.free();
 
       final text = result.text.trim();
@@ -252,20 +323,20 @@ class SherpaSTTService implements ISTTService {
     }
   }
 
-  /// Step 4: Process completed VAD segments (speech ended → final decode)
+  /// Step 4: Process completed VAD segments (Offline mode only)
   void _processCompletedSegments() {
     while (!_vad!.isEmpty()) {
       final segment = _vad!.front();
       print('[SherpaSTT] 📦 VAD segment: ${segment.samples.length} samples');
 
       try {
-        final stream = _recognizer!.createStream();
+        final stream = _offlineRecognizer!.createStream();
         stream.acceptWaveform(
           samples: segment.samples,
           sampleRate: _sampleRate,
         );
-        _recognizer!.decode(stream);
-        final result = _recognizer!.getResult(stream);
+        _offlineRecognizer!.decode(stream);
+        final result = _offlineRecognizer!.getResult(stream);
         stream.free();
 
         final text = result.text.trim();
@@ -298,59 +369,60 @@ class SherpaSTTService implements ISTTService {
     _audioSubscription = null;
     await _audioRecorder.stop();
 
-    // Flush any remaining speech in the VAD
-    if (_vad != null && _recognizer != null) {
-      _vad!.flush();
-      // Process any segments the flush produced
-      while (!_vad!.isEmpty()) {
-        final segment = _vad!.front();
-        print('[SherpaSTT] 📦 Flush segment: ${segment.samples.length} samples');
-        try {
-          final stream = _recognizer!.createStream();
-          stream.acceptWaveform(
-            samples: segment.samples,
-            sampleRate: _sampleRate,
-          );
-          _recognizer!.decode(stream);
-          final result = _recognizer!.getResult(stream);
-          stream.free();
-          final text = result.text.trim();
-          if (text.isNotEmpty) {
-            _lastText = text;
-            _onResult?.call(_lastText);
-            print('[SherpaSTT] ✅ Flush result: "$text"');
-          }
-        } catch (e) {
-          print('[SherpaSTT] ❌ Flush error: $e');
+    if (online) {
+      // For online mode, just grab one last result if any
+      if (_onlineRecognizer != null && _onlineStream != null) {
+        while (_onlineRecognizer!.isReady(_onlineStream!)) {
+          _onlineRecognizer!.decode(_onlineStream!);
         }
-        _vad!.pop();
+        final result = _onlineRecognizer!.getResult(_onlineStream!);
+        if (result.text.isNotEmpty) {
+          _onResult?.call(result.text.trim());
+        }
+        _onlineRecognizer!.reset(_onlineStream!);
       }
-
-      // If speech was in progress but VAD hadn't finalized,
-      // do one last decode on whatever's accumulated
-      if (_isSpeechStarted && _bufferOffset > _speechStartOffset) {
-        final sampleCount = _bufferOffset - _speechStartOffset;
-        final speechSamples = Float32List(sampleCount);
-        for (int i = 0; i < sampleCount; i++) {
-          speechSamples[i] = _audioBuffer[_speechStartOffset + i];
-        }
-        try {
-          final stream = _recognizer!.createStream();
-          stream.acceptWaveform(
-            samples: speechSamples,
-            sampleRate: _sampleRate,
-          );
-          _recognizer!.decode(stream);
-          final result = _recognizer!.getResult(stream);
-          stream.free();
-          final text = result.text.trim();
-          if (text.isNotEmpty) {
-            _lastText = text;
-            _onResult?.call(_lastText);
-            print('[SherpaSTT] ✅ Stop residual: "$text"');
+    } else {
+      // Flush any remaining speech in the VAD
+      if (_vad != null && _offlineRecognizer != null) {
+        _vad!.flush();
+        while (!_vad!.isEmpty()) {
+          final segment = _vad!.front();
+          try {
+            final stream = _offlineRecognizer!.createStream();
+            stream.acceptWaveform(
+                samples: segment.samples, sampleRate: _sampleRate);
+            _offlineRecognizer!.decode(stream);
+            final result = _offlineRecognizer!.getResult(stream);
+            stream.free();
+            if (result.text.isNotEmpty) {
+              _onResult?.call(result.text.trim());
+            }
+          } catch (e) {
+            print('[SherpaSTT] ❌ Flush error: $e');
           }
-        } catch (e) {
-          print('[SherpaSTT] ❌ Stop residual error: $e');
+          _vad!.pop();
+        }
+
+        // Final residual decode
+        if (_isSpeechStarted && _bufferOffset > _speechStartOffset) {
+          final sampleCount = _bufferOffset - _speechStartOffset;
+          final speechSamples = Float32List(sampleCount);
+          for (int i = 0; i < sampleCount; i++) {
+            speechSamples[i] = _audioBuffer[_speechStartOffset + i];
+          }
+          try {
+            final stream = _offlineRecognizer!.createStream();
+            stream.acceptWaveform(
+                samples: speechSamples, sampleRate: _sampleRate);
+            _offlineRecognizer!.decode(stream);
+            final result = _offlineRecognizer!.getResult(stream);
+            stream.free();
+            if (result.text.isNotEmpty) {
+              _onResult?.call(result.text.trim());
+            }
+          } catch (e) {
+            print('[SherpaSTT] ❌ Stop residual error: $e');
+          }
         }
       }
     }
@@ -370,9 +442,13 @@ class SherpaSTTService implements ISTTService {
     stop();
     _audioRecorder.dispose();
     _vad?.free();
-    _recognizer?.free();
+    _offlineRecognizer?.free();
+    _onlineStream?.free();
+    _onlineRecognizer?.free();
     _vad = null;
-    _recognizer = null;
+    _offlineRecognizer = null;
+    _onlineStream = null;
+    _onlineRecognizer = null;
   }
 
   int _currentTimeMs() => DateTime.now().millisecondsSinceEpoch;

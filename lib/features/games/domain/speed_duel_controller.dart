@@ -20,7 +20,7 @@ class SpeedDuelController {
 
   // --- Services ---
   final FlutterTts _tts = FlutterTts();
-  final ISTTService _sttService = ISTTService.sherpa(); // Switch to .sherpa() to use Sherpa ONNX
+  final ISTTService _sttService = ISTTService.flutter(); // Switch to .sherpa() to use Sherpa ONNX
   bool _speechAvailable = false;
 
   // --- State ---
@@ -367,7 +367,7 @@ class SpeedDuelController {
     String message;
     if (finalWinners.isEmpty) {
       message = "Không ai được điểm! 😅";
-      _tts.speak("Tiếc quá, không ai được điểm!");
+      _tts.speak("Đáp án là ${_state.targetWord}! Các bạn cố lên nhé!");
     } else if (finalWinners.length == 1) {
       final w = finalWinners.first;
       if (w == "Bé") {
@@ -375,7 +375,7 @@ class SpeedDuelController {
         _tts.speak("Con giỏi lắm!");
       } else {
         message = "$w thắng rồi! 😢";
-        _tts.speak("$w thắng mất rồi!");
+        _tts.speak("Đáp án là ${_state.targetWord}! $w thắng rồi!");
       }
     } else {
       if (finalWinners.contains("Bé")) {
@@ -383,7 +383,7 @@ class SpeedDuelController {
         _tts.speak("Bé giỏi quá, các bạn cũng giỏi nữa!");
       } else {
         message = "${finalWinners.join(", ")} đều thắng! 🤖";
-        _tts.speak("Các bạn đều thắng rồi!");
+        _tts.speak("Đáp án là ${_state.targetWord}! Cả nhà đều thắng!");
       }
     }
 

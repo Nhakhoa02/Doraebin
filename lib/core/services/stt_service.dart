@@ -15,5 +15,6 @@ abstract class ISTTService {
   void dispose();
 
   factory ISTTService.flutter() => FlutterSTTService();
-  factory ISTTService.sherpa() => SherpaSTTService();
+  factory ISTTService.sherpa({int type = 0, bool online = false}) =>
+      SherpaSTTService(type: type, online: online);
 }
