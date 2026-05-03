@@ -26,7 +26,8 @@ Future<String> copyAssetFile(String src, [String? dst]) async {
 Float32List convertBytesToFloat32(Uint8List bytes, [endian = Endian.little]) {
   final values = Float32List(bytes.length ~/ 2);
 
-  final data = ByteData.view(bytes.buffer);
+  // IMPORTANT: use offsetInBytes to handle Uint8List views correctly
+  final data = ByteData.view(bytes.buffer, bytes.offsetInBytes, bytes.lengthInBytes);
 
   for (var i = 0; i < bytes.length; i += 2) {
     int short = data.getInt16(i, endian);
