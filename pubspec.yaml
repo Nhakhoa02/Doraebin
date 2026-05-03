@@ -49,6 +49,8 @@ dependencies:
   cached_network_image: ^3.4.1
   dotlottie_loader: ^0.0.6
   flutter_svg: ^2.2.4
+  sherpa_onnx: ^1.13.0
+  record: ^6.2.0
 
 dev_dependencies:
   flutter_test:
@@ -76,6 +78,11 @@ flutter:
     - assets/animations/
     - assets/images/
     - assets/svg/
+    - assets/models/sherpa-onnx-zipformer-vi-int8-2025-04-20/sherpa-onnx-zipformer-vi-int8-2025-04-20/
+    - assets/models/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09/
+    - assets/models/sherpa-onnx-moonshine-base-vi-quantized-2026-02-27/sherpa-onnx-moonshine-base-vi-quantized-2026-02-27/
+    - assets/models/sherpa-onnx-zipformer-vi-2025-04-20/sherpa-onnx-zipformer-vi-2025-04-20/
+    - assets/models/sherpa-onnx-zipformer-vi-30M-2026-02-09/sherpa-onnx-zipformer-vi-30M-2026-02-09/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

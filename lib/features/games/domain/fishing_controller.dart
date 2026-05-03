@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../../../core/services/stt_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'fishing_models.dart';
@@ -14,7 +14,7 @@ class FishingController {
 
   // --- Services ---
   final FlutterTts _tts = FlutterTts();
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  final ISTTService _sttService = ISTTService.flutter();
   bool _speechAvailable = false;
 
   // --- State ---
@@ -48,14 +48,7 @@ class FishingController {
     await _tts.setSpeechRate(0.5);
 
     try {
-      _speechAvailable = await _speech.initialize(
-        onError: (err) => debugPrint("STT Error: $err"),
-        onStatus: (status) {
-          if (status == 'notListening' && _state.isListening) {
-             _emit(_state.copyWith(isListening: false));
-          }
-        },
-      );
+      _speechAvailable = await _sttService.initialize();
     } catch (e) {
       _speechAvailable = false;
     }
@@ -73,7 +66,7 @@ class FishingController {
   void dispose() {
     _gameLoopTimer?.cancel();
     _tts.stop();
-    _speech.stop();
+    _sttService.dispose();
   }
 
   void _emit(FishingGameState newState) {
@@ -322,18 +315,21 @@ class FishingController {
     if (!status.isGranted) return;
 
     _emit(_state.copyWith(isListening: true, recognizedWords: ""));
-    await _speech.listen(
-      onResult: (result) {
-        final words = result.recognizedWords;
+    await _sttService.listen(
+      onResult: (words) {
         _emit(_state.copyWith(recognizedWords: words));
         
         if (_state.currentTaskWord != null && 
             words.toLowerCase().contains(_state.currentTaskWord!.toLowerCase())) {
-          _speech.stop();
+          _sttService.stop();
           _onTaskSuccess();
         }
       },
-      localeId: "vi-VN",
+      onStatus: (status) {
+        if (status == 'notListening' && _state.isListening) {
+          _emit(_state.copyWith(isListening: false));
+        }
+      },
     );
   }
 }

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../../../core/services/stt_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'speed_duel_models.dart';
@@ -20,7 +20,7 @@ class SpeedDuelController {
 
   // --- Services ---
   final FlutterTts _tts = FlutterTts();
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  final ISTTService _sttService = ISTTService.sherpa(); // Switch to .sherpa() to use Sherpa ONNX
   bool _speechAvailable = false;
 
   // --- State ---
@@ -61,30 +61,8 @@ class SpeedDuelController {
     await _tts.setPitch(1.1);
     await _tts.setSpeechRate(0.5);
     try {
-      _speechAvailable = await _speech.initialize(
-        onError: (error) {
-          debugPrint("STT error: ${error.errorMsg}");
-          // Auto-recover: if we were listening, mark as stopped
-          if (_state.isListening) {
-            _emit(_state.copyWith(isListening: false));
-          }
-        },
-        onStatus: (status) {
-          debugPrint("STT status: $status");
-          // speech_to_text fires "notListening" when the session ends
-          if (status == 'notListening' && _state.isListening) {
-            _emit(_state.copyWith(isListening: false));
-            // Auto-restart mic if still in playing phase and read mode
-            if (_state.phase == GamePhase.playing &&
-                _state.mode == DuelMode.read &&
-                _state.roundWinners.isEmpty) {
-              Future.delayed(const Duration(milliseconds: 400), () {
-                _startMic();
-              });
-            }
-          }
-        },
-      );
+      _speechAvailable = await _sttService.initialize();
+      // Note: Error and Status handling are now encapsulated in the service
     } catch (e) {
       debugPrint("STT init failed: $e");
       _speechAvailable = false;
@@ -94,6 +72,7 @@ class SpeedDuelController {
   void dispose() {
     _cancelAllTimers();
     _stopMicImmediate();
+    _sttService.dispose();
     _tts.stop();
   }
 
@@ -453,7 +432,7 @@ class SpeedDuelController {
 
     try {
       // Ensure stopped first
-      await _speech.stop();
+      await _sttService.stop();
       await Future.delayed(const Duration(milliseconds: 100));
 
       if (_state.phase != GamePhase.playing || _state.roundWinners.isNotEmpty) {
@@ -463,21 +442,18 @@ class SpeedDuelController {
 
       _emit(_state.copyWith(isListening: true, recognizedWords: ""));
 
-      int count = 0;
-      int targetLength = _state.targetWord!.toLowerCase().split(' ').length;
-
-      await _speech.listen(
-        onResult: (result) {
+      await _sttService.listen(
+        onResult: (words) {
           if (_state.phase != GamePhase.playing || _state.roundWinners.isNotEmpty) {
             _stopMicImmediate();
             return;
           }
 
-          final words = result.recognizedWords;
           _emit(_state.copyWith(recognizedWords: words));
 
           // Split words into list
           final wordList = words.toLowerCase().split(' ');
+          int targetLength = _state.targetWord!.toLowerCase().split(' ').length;
 
           // Take the last (targetLength) words safely
           final startIndex = wordList.length - targetLength;
@@ -493,12 +469,15 @@ class SpeedDuelController {
             _resolveRound(winnerNames: botWinners, isKidWin: true);
           }
         },
-        localeId: "vi-VN",
-        listenOptions: stt.SpeechListenOptions(
-          listenMode: stt.ListenMode.confirmation,
-          cancelOnError: true,
-          partialResults: true,
-        ),
+        onStatus: (status) {
+          if (status == 'notListening' && _state.isListening) {
+            _emit(_state.copyWith(isListening: false));
+            // Auto-restart if needed
+            if (_state.phase == GamePhase.playing && _state.roundWinners.isEmpty) {
+              Future.delayed(const Duration(milliseconds: 400), () => _startMic());
+            }
+          }
+        },
       );
     } catch (e) {
       debugPrint("Mic start error: $e");
@@ -510,7 +489,7 @@ class SpeedDuelController {
 
   void _stopMicImmediate() {
     try {
-      _speech.stop();
+      _sttService.stop();
     } catch (_) {}
     if (_state.isListening) {
       _emit(_state.copyWith(isListening: false));
