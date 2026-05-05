@@ -35,7 +35,7 @@ class SherpaSTTService implements ISTTService {
   SherpaSTTService({this.type = 0, this.online = false});
 
   // Callbacks stored for the duration of a listen() session
-  Function(String)? _onResult;
+  Function(String, bool)? _onResult;
   Function(dynamic)? _onError;
   Function(String)? _onStatus;
 
@@ -119,7 +119,7 @@ class SherpaSTTService implements ISTTService {
 
   @override
   Future<void> listen({
-    required Function(String) onResult,
+    required Function(String, bool) onResult,
     Function(dynamic)? onError,
     Function(String)? onStatus,
   }) async {
@@ -235,7 +235,7 @@ class SherpaSTTService implements ISTTService {
 
     if (text.isNotEmpty && text != _lastText) {
       _lastText = text;
-      _onResult?.call(_lastText);
+      _onResult?.call(_lastText, false);
       print('[SherpaSTT] 📝 Online: "$text"');
     }
 
@@ -312,7 +312,7 @@ class SherpaSTTService implements ISTTService {
       final text = result.text.trim();
       if (text.isNotEmpty) {
         _lastText = text;
-        _onResult?.call(_lastText);
+        _onResult?.call(_lastText, false);
         _resultAdded = true;
         print('[SherpaSTT] 📝 Interim: "$text"');
       }
@@ -342,7 +342,7 @@ class SherpaSTTService implements ISTTService {
         final text = result.text.trim();
         if (text.isNotEmpty) {
           _lastText = text;
-          _onResult?.call(_lastText);
+          _onResult?.call(_lastText, true);
           print('[SherpaSTT] ✅ Final: "$text"');
         }
       } catch (e) {
@@ -377,7 +377,7 @@ class SherpaSTTService implements ISTTService {
         }
         final result = _onlineRecognizer!.getResult(_onlineStream!);
         if (result.text.isNotEmpty) {
-          _onResult?.call(result.text.trim());
+          _onResult?.call(result.text.trim(), true);
         }
         _onlineRecognizer!.reset(_onlineStream!);
       }
@@ -395,7 +395,7 @@ class SherpaSTTService implements ISTTService {
             final result = _offlineRecognizer!.getResult(stream);
             stream.free();
             if (result.text.isNotEmpty) {
-              _onResult?.call(result.text.trim());
+              _onResult?.call(result.text.trim(), true);
             }
           } catch (e) {
             print('[SherpaSTT] ❌ Flush error: $e');
@@ -418,7 +418,7 @@ class SherpaSTTService implements ISTTService {
             final result = _offlineRecognizer!.getResult(stream);
             stream.free();
             if (result.text.isNotEmpty) {
-              _onResult?.call(result.text.trim());
+              _onResult?.call(result.text.trim(), true);
             }
           } catch (e) {
             print('[SherpaSTT] ❌ Stop residual error: $e');

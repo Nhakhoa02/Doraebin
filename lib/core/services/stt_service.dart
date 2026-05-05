@@ -5,7 +5,7 @@ import './sherpa_stt_service.dart';
 abstract class ISTTService {
   Future<bool> initialize();
   Future<void> listen({
-    required Function(String) onResult,
+    required Function(String, bool) onResult,
     Function(dynamic)? onError,
     Function(String)? onStatus,
   });

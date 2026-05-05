@@ -26,14 +26,14 @@ class FlutterSTTService implements ISTTService {
 
   @override
   Future<void> listen({
-    required Function(String) onResult,
+    required Function(String, bool) onResult,
     Function(dynamic)? onError,
     Function(String)? onStatus,
   }) async {
     if (!_available) return;
     _listening = true;
     await _speech.listen(
-      onResult: (result) => onResult(result.recognizedWords),
+      onResult: (result) => onResult(result.recognizedWords, result.finalResult),
       localeId: "vi-VN",
       listenOptions: stt.SpeechListenOptions(
         listenMode: stt.ListenMode.confirmation,

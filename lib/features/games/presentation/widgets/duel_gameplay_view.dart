@@ -231,7 +231,8 @@ class DuelGameplayView extends StatelessWidget {
 
   Widget _buildPlaying(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isResult = state.phase == GamePhase.roundResult;
+    final isFinalResult = state.phase == GamePhase.roundResult && state.roundWinners.contains("Bé");
+    final isPractice = state.phase == GamePhase.roundResult && !state.roundWinners.contains("Bé");
 
     return Column(
       children: [
@@ -240,7 +241,7 @@ class DuelGameplayView extends StatelessWidget {
           duration: const Duration(milliseconds: 300),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: isResult
+            color: (isFinalResult || isPractice)
                 ? (state.roundWinners.contains("Bé")
                     ? Colors.green.withValues(alpha: 0.15)
                     : Colors.orange.withValues(alpha: 0.15))
@@ -251,7 +252,7 @@ class DuelGameplayView extends StatelessWidget {
             state.gameMessage,
             style: GoogleFonts.handlee(
               fontSize: 20,
-              color: isResult
+              color: (isFinalResult || isPractice)
                   ? (state.roundWinners.contains("Bé") ? Colors.green.shade700 : Colors.orange.shade800)
                   : colorScheme.secondary,
               fontWeight: FontWeight.bold,
@@ -261,9 +262,9 @@ class DuelGameplayView extends StatelessWidget {
         const SizedBox(height: 4),
         Expanded(
           child: IgnorePointer(
-            ignoring: isResult, // Disable taps during result display
+            ignoring: isFinalResult, // Disable taps only when round is officially over
             child: AnimatedOpacity(
-              opacity: isResult ? 0.6 : 1.0,
+              opacity: isFinalResult ? 0.6 : 1.0,
               duration: const Duration(milliseconds: 300),
               child: state.mode == DuelMode.recognize
                   ? _buildRecognizeGrid(colorScheme)

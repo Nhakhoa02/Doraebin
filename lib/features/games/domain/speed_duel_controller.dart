@@ -154,7 +154,7 @@ class SpeedDuelController {
     if (_state.mode == DuelMode.read && !_speechAvailable) {
       _emit(_state.copyWith(
         phase: GamePhase.loading,
-        gameMessage: "Đang chuẩn bị mô hình...",
+        gameMessage: "Bạn chờ xíu nha!...",
       ));
       
       // Add a tiny delay so the user sees the loading screen (prevents jarring transition)
@@ -409,13 +409,37 @@ class SpeedDuelController {
       isListening: false,
     ));
 
-    // Auto-advance
-    _roundResultTimer = Timer(const Duration(seconds: 3), () {
+    // Auto-advance if kid win
+    if (isKidWin){
+        _roundResultTimer = Timer(const Duration(seconds: 3), () {
+        _roundResultTimer = null;
+        if (_state.phase == GamePhase.roundResult) {
+          _startNewRound();
+        }
+      });
+    } else {
+      // Let kids practice if they want and a next button to next round
       _roundResultTimer = null;
-      if (_state.phase == GamePhase.roundResult) {
-        _startNewRound();
+      
+      if (_state.mode == DuelMode.read) {
+        // Wait for current TTS (winner announcement) to finish before prompting for practice
+        Future.delayed(const Duration(seconds: 4), () {
+          if (_state.phase == GamePhase.roundResult && !_state.roundWinners.contains("Bé")) {
+            _emit(_state.copyWith(
+              gameMessage: "Nào, bé đọc lại từ này nhé! 🎤",
+            ));
+            _startMic();
+          }
+        });
+      } else {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (_state.phase == GamePhase.roundResult) {
+            _startNewRound();
+          }
+        });
       }
-    });
+    }
+    
   }
 
   void onOptionTap(String word) {
@@ -425,8 +449,8 @@ class SpeedDuelController {
     if (word == _state.targetWord) {
       _resolveRound(winnerNames: [], isKidWin: true);
     } else {
-      _tts.speak("Sai rồi!");
-      _emit(_state.copyWith(gameMessage: "Sai rồi! Thử lại! ❌"));
+      _tts.speak(word);
+      _emit(_state.copyWith(gameMessage: "Chưa đúng ❌ Thử lại nhé!"));
     }
   }
 
@@ -437,9 +461,12 @@ class SpeedDuelController {
   Future<void> _startMic() async {
     if (_micBusy) return;
     if (!_speechAvailable) return;
-    if (_state.phase != GamePhase.playing) return;
-    if (_state.roundWinners.isNotEmpty) return;
-    if (_state.isListening) return;
+    
+    // Allow listening in playing phase OR roundResult (for practice)
+    if (_state.phase != GamePhase.playing && _state.phase != GamePhase.roundResult) return;
+    
+    // If we're in roundResult, only start if the kid hasn't won yet
+    if (_state.phase == GamePhase.roundResult && _state.roundWinners.contains("Bé")) return;
 
     _micBusy = true;
 
@@ -448,7 +475,8 @@ class SpeedDuelController {
       await _sttService.stop();
       await Future.delayed(const Duration(milliseconds: 100));
 
-      if (_state.phase != GamePhase.playing || _state.roundWinners.isNotEmpty) {
+      if ((_state.phase != GamePhase.playing && _state.phase != GamePhase.roundResult) ||
+          (_state.phase == GamePhase.roundResult && _state.roundWinners.contains("Bé"))) {
         _micBusy = false;
         return;
       }
@@ -456,36 +484,69 @@ class SpeedDuelController {
       _emit(_state.copyWith(isListening: true, recognizedWords: ""));
 
       await _sttService.listen(
-        onResult: (words) {
-          if (_state.phase != GamePhase.playing || _state.roundWinners.isNotEmpty) {
+        onResult: (words, isFinal) {
+          // Guard for phase change
+          if (_state.phase != GamePhase.playing && _state.phase != GamePhase.roundResult) {
+            _stopMicImmediate();
+            return;
+          }
+          
+          if (_state.phase == GamePhase.roundResult && _state.roundWinners.contains("Bé")) {
             _stopMicImmediate();
             return;
           }
 
           _emit(_state.copyWith(recognizedWords: words));
 
-          // Split words into list
+          // Check if the kid read the word correctly
           final wordList = words.toLowerCase().split(' ');
           int targetLength = _state.targetWord!.toLowerCase().split(' ').length;
-
-          // Take the last (targetLength) words safely
           final startIndex = wordList.length - targetLength;
           final recentWords = wordList
               .sublist(startIndex < 0 ? 0 : startIndex)
               .join(' ');
 
-          // Check if the kid read the word correctly
           if (_state.targetWord != null &&
               recentWords.contains(_state.targetWord!.toLowerCase())) {
-            // Kid won! Also roll for bots independently
-            final botWinners = _rollForBots();
-            _resolveRound(winnerNames: botWinners, isKidWin: true);
+            
+            if (_state.phase == GamePhase.playing) {
+              // Kid won during regular play! Also roll for bots independently
+              final botWinners = _rollForBots();
+              _resolveRound(winnerNames: botWinners, isKidWin: true);
+            } else {
+              // Practice success in roundResult phase!
+              _stopMicImmediate();
+              _emit(_state.copyWith(
+                gameMessage: "Tuyệt vời! Bé đã đọc đúng rồi! ✨",
+                roundWinners: [..._state.roundWinners, "Bé"],
+              ));
+              _tts.speak("Đúng rồi! Con giỏi lắm!");
+              
+              // Move to next round after 3 seconds
+              Future.delayed(const Duration(seconds: 3), () {
+                if (_state.phase == GamePhase.roundResult) {
+                  _startNewRound();
+                }
+              });
+            }
+          } else if (isFinal && _state.phase == GamePhase.roundResult && words.isNotEmpty) {
+            // Wrong attempt during practice - give feedback and try again
+            _stopMicImmediate();
+            _emit(_state.copyWith(gameMessage: "Chưa đúng rồi, nghe lại nhé! 👂"));
+            _tts.speak(_state.targetWord!);
+            
+            // Restart mic after TTS finishes (approx 2s)
+            Future.delayed(const Duration(seconds: 2), () {
+              if (_state.phase == GamePhase.roundResult && !_state.roundWinners.contains("Bé")) {
+                _startMic();
+              }
+            });
           }
         },
         onStatus: (status) {
           if (status == 'notListening' && _state.isListening) {
             _emit(_state.copyWith(isListening: false));
-            // Auto-restart if needed
+            // Auto-restart only if in playing phase (regular game flow)
             if (_state.phase == GamePhase.playing && _state.roundWinners.isEmpty) {
               Future.delayed(const Duration(milliseconds: 400), () => _startMic());
             }

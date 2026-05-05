@@ -316,7 +316,7 @@ class FishingController {
 
     _emit(_state.copyWith(isListening: true, recognizedWords: ""));
     await _sttService.listen(
-      onResult: (words) {
+      onResult: (words, isFinal) {
         _emit(_state.copyWith(recognizedWords: words));
         
         if (_state.currentTaskWord != null && 
