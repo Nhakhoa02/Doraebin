@@ -119,7 +119,7 @@ Future<sherpa_onnx.VadModelConfig> getVadModelConfig({int type = 0}) async {
       minSilenceDuration: 0.5,  // seconds of silence to end a speech segment
       minSpeechDuration: 0.5,  // minimum speech length to trigger
       maxSpeechDuration: 30.0,  // max speech segment (seconds)
-      threshold: 0.45,          // speech probability threshold
+      threshold: 0.25,          // speech probability threshold
       windowSize: 512,          // must be 512 for 16kHz
     ),
     sampleRate: 16000,

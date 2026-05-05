@@ -26,12 +26,52 @@ class DuelGameplayView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (state.phase) {
+      GamePhase.loading => _buildLoading(context),
       GamePhase.countdown => _buildCountdown(context),
       GamePhase.paused => _buildPaused(context),
       GamePhase.finished => _buildFinished(context),
       GamePhase.playing || GamePhase.roundResult => _buildPlaying(context),
       _ => const SizedBox.shrink(),
     };
+  }
+
+  // ─────────────────────────────────────────────
+  // Loading
+  // ─────────────────────────────────────────────
+  Widget _buildLoading(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(
+            width: 80,
+            height: 80,
+            child: CircularProgressIndicator(
+              strokeWidth: 8,
+              strokeCap: StrokeCap.round,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            "Đang chuẩn bị...",
+            style: GoogleFonts.handlee(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Chờ một chút xíu thôi nhé!",
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              color: colorScheme.outline,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ─────────────────────────────────────────────

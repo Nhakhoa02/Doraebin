@@ -20,7 +20,8 @@ class SpeedDuelController {
 
   // --- Services ---
   final FlutterTts _tts = FlutterTts();
-  final ISTTService _sttService = ISTTService.flutter(); // Switch to .sherpa() to use Sherpa ONNX
+  final ISTTService _sttService = ISTTService.sherpa(type: 4, online: false); // Switch to .sherpa() to use Sherpa ONNX
+  // final ISTTService _sttService = ISTTService.flutter();
   bool _speechAvailable = false;
 
   // --- State ---
@@ -47,9 +48,9 @@ class SpeedDuelController {
   // --- Bot roster ---
   final List<BotInfo> allBots = const [
     BotInfo(name: "Nobita", avatar: "🤓", speedFactor: 0.6, color: Colors.green),
-    BotInfo(name: "Xuka", avatar: "🎀", speedFactor: 1.0, color: Colors.pink),
+    BotInfo(name: "Shizuka", avatar: "🎀", speedFactor: 1.0, color: Colors.pink),
     BotInfo(name: "Chaien", avatar: "🦍", speedFactor: 1.6, color: Colors.orange),
-    BotInfo(name: "Xê-kô", avatar: "🦊", speedFactor: 1.3, color: Colors.blue),
+    BotInfo(name: "Suneo", avatar: "🦊", speedFactor: 1.3, color: Colors.blue),
   ];
 
   // ─────────────────────────────────────────────
@@ -60,9 +61,11 @@ class SpeedDuelController {
     await _tts.setLanguage("vi-VN");
     await _tts.setPitch(1.1);
     await _tts.setSpeechRate(0.5);
+  }
+
+  Future<void> initSTT() async {
     try {
       _speechAvailable = await _sttService.initialize();
-      // Note: Error and Status handling are now encapsulated in the service
     } catch (e) {
       debugPrint("STT init failed: $e");
       _speechAvailable = false;
@@ -145,12 +148,22 @@ class SpeedDuelController {
       if (!status.isGranted) {
         return "Cần quyền mic để chơi chế độ này nhé!";
       }
-      // Re-init speech if needed
+    }
+
+    // Initialize STT (the laggy part) if in read mode
+    if (_state.mode == DuelMode.read && !_speechAvailable) {
+      _emit(_state.copyWith(
+        phase: GamePhase.loading,
+        gameMessage: "Đang chuẩn bị mô hình...",
+      ));
+      
+      // Add a tiny delay so the user sees the loading screen (prevents jarring transition)
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      await initSTT();
       if (!_speechAvailable) {
-        await init();
-        if (!_speechAvailable) {
-          return "Không thể khởi động nhận giọng nói. Hãy thử lại!";
-        }
+        _emit(_state.copyWith(phase: GamePhase.setup));
+        return "Không thể khởi động nhận giọng nói. Hãy thử lại!";
       }
     }
 

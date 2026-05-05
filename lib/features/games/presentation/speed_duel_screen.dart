@@ -160,6 +160,7 @@ class _SpeedDuelScreenState extends State<SpeedDuelScreen> {
           case GamePhase.roundResult:
             _controller.pause();
             break;
+          case GamePhase.loading:
           case GamePhase.paused:
           case GamePhase.countdown:
           case GamePhase.finished:

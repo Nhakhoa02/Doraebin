@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 enum DuelMode { recognize, read }
 
-enum GamePhase { setup, countdown, playing, paused, roundResult, finished }
+enum GamePhase { setup, loading, countdown, playing, paused, roundResult, finished }
 
 // --- Data Classes ---
 
