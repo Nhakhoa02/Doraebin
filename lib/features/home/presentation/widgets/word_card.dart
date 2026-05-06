@@ -134,6 +134,14 @@ class _WordCardState extends State<WordCard> with SingleTickerProviderStateMixin
   }
 
   Widget _buildStaticImage() {
+    if (widget.word.imageUrl.startsWith('assets/')) {
+      return Image.asset(
+        widget.word.imageUrl,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image_outlined),
+      );
+    }
+    
     return CachedNetworkImage(
       imageUrl: widget.word.imageUrl,
       fit: BoxFit.contain,

@@ -1,15 +1,35 @@
 import 'package:flutter/material.dart';
+import '../../home/domain/category_assets.dart';
 
 class WordItem {
   final String text;
   final String imageUrl;
   final String? lottieUrl;
+  final String categoryId;
 
   const WordItem({
     required this.text,
     required this.imageUrl,
     this.lottieUrl,
+    this.categoryId = 'custom',
   });
+
+  factory WordItem.fromDatabase(Map<String, dynamic> data) {
+    final text = data['text'] as String;
+    final categoryId = data['category_id'] as String? ?? 'custom';
+    final dbImageUrl = data['image_url'] as String?;
+    
+    // Fallback to static mapping if database URL is missing or empty
+    final resolvedUrl = (dbImageUrl != null && dbImageUrl.isNotEmpty)
+        ? dbImageUrl
+        : CategoryAssets.getWordAsset(categoryId, text) ?? '';
+
+    return WordItem(
+      text: text,
+      imageUrl: resolvedUrl,
+      categoryId: categoryId,
+    );
+  }
 }
 
 class Lesson {

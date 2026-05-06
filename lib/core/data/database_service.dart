@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
+import '../../features/home/domain/category_assets.dart';
 
 class DatabaseService {
   late Database _db;
@@ -31,10 +32,18 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         text TEXT NOT NULL UNIQUE,
         category_id TEXT,
+        image_url TEXT,
         added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
       )
     ''');
+
+    // Migration: Add image_url column if it doesn't exist
+    try {
+      _db.execute('ALTER TABLE words ADD COLUMN image_url TEXT');
+    } catch (_) {
+      // Column already exists or table doesn't exist yet
+    }
 
     // Always synchronize categories to ensure updates propagate
     _insertDefaultCategories();
@@ -83,20 +92,20 @@ class DatabaseService {
     final Map<String, List<String>> categoryWords = {
       'gia_dinh': [
         //people 
-        'bố', 'mẹ', 'ông', 'bà', 'anh', 'chị', 'em',
+        'bố', 'mẹ', 'ông', 'bà', 'anh trai', 'chị gái', 'em trai', 'em gái',
         // items
         'ngôi nhà', 'cửa sổ', 'hàng rào',
         'sân nhà', 'phòng khách', 'phòng ngủ', 'nhà bếp', 'nhà vệ sinh',
-        'bàn', 'ghế', 'giường', 'tủ', 'tủ quần áo', 'tủ lạnh',
-        'đèn', 'bóng đèn', 'quạt', 'gương', 'ti vi',
-        'bếp', 'chén', 'bát', 'muỗng'
+        'bàn', 'ghế', 'giường ngủ', 'tủ quần áo', 'tủ lạnh',
+        'bóng đèn', 'quạt', 'gương', 'ti vi',
+        'bếp', 'chén', 'tô', 'ly', 'muỗng', 'nĩa', 'đũa'
       ],
       'co_the': [
-        'đầu', 'tóc', 'mặt', 'mắt', 'mũi', 'miệng', 'tai', 
+        'đầu', 'tóc', 'mặt', 'mắt', 'mũi', 'miệng', 'tai', 'môi',
         'cổ', 'vai', 'bàn tay', 'bàn chân', 
         'ngón tay', 'ngón chân', 
         'bụng', 'lưng', 
-        'da', 'lưỡi', 'răng', 
+        'lưỡi', 'răng', 
         'đầu gối', 'khuỷu tay'
       ],
       'mau_sac': [
@@ -112,34 +121,19 @@ class DatabaseService {
         'con chó', 'con mèo', 'con chuột', 'con thỏ',
         'con gà', 'con vịt', 'con bò', 'con heo', 'con cừu', 'con ngựa',
         'con voi', 'con hổ', 'con sư tử', 'con gấu', 'con khỉ', 'con cáo', 'con hươu', 
-        'con sóc', 'cá heo', 'chim cánh cụt',
-        'con cá', 'con chim', 'con ếch', 'con rùa', 'cá sấu'
+        'con sóc', 'con cá', 'con chim',
+        'con ếch', 'con rùa',
       ],
       'con_trung': [
         'con bướm', 'con ong', 'con kiến', 'con ruồi', 'con muỗi', 
-        'con nhện', 'con bọ cánh cứng', 'con sâu', 
-        'con chuồn chuồn', 'bọ xít', 'bọ ngựa', 
-        've sầu', 'bọ hung'
+        'con nhện', 'con sâu', 
+        'con chuồn chuồn', 'bọ ngựa', 
+        've sầu'
       ],
       'hoa': [
         'hoa hồng', 'hoa hướng dương', 'hoa cúc', 'hoa lan', 
         'hoa ly', 'hoa sen', 'hoa đào', 'hoa mai', 'hoa loa kèn',
-        'hoa dâm bụt', 'hoa nhài', 'hoa oải hương', 'hoa cẩm tú cầu', 'hoa mẫu đơn'
-      ],
-      'cay_coi': [
-        'cây tre', 'cây chuối', 'cây xoài', 'cây mít', 'cây ổi', 
-        'cây bàng', 'cây phượng', 'cây thông', 'cây cau', 'cây dừa',
-        'cây me', 'cây khế', 'cây sung', 'cây đa'
-      ],
-      'trai_cay': [
-        'quả táo', 'quả cam', 'quả chuối', 'quả nho', 'quả dâu', 
-        'quả xoài', 'quả dưa hấu', 'quả dứa', 'quả đu đủ', 'quả lê',
-        'quả bơ', 'quả chanh', 'quả mận', 'quả thanh long', 'quả ổi', 'quả dừa', 'quả bưởi'
-      ],
-      'rau_cu': [
-        'củ cà rốt', 'quả cà chua', 'củ khoai tây', 'bắp cải',
-        'quả bí đỏ', 'quả bí đao', 'quả dưa chuột', 'quả ớt', 'củ hành tây',
-        'củ khoai lang', 'quả mướp',
+        'hoa dâm bụt'
       ],
       'mon_an': [
         'cơm', 'phở', 'bún', 'mì', 'bánh mì', 
@@ -150,8 +144,8 @@ class DatabaseService {
         'kem', 'bánh quy', 'kẹo'
       ],
       'nuoc_uong': [
-        'nước', 'nước lọc', 'nước suối', 
-        'sữa', 'sữa tươi', 'sữa chua', 
+        'nước suối', 
+        'sữa tươi', 'sữa chua', 
         'nước cam', 'nước táo', 'nước dừa', 
         'nước ngọt', 
         'trà sữa', 'nước ép', 'sinh tố', 
@@ -175,44 +169,14 @@ class DatabaseService {
         'bạn bè', 'bài tập', 'tiết học', 
         'cổng trường', 'sân trường'
       ],
-      'giao_thong': [
-        'xe máy', 'xe đạp', 'xe hơi', 'xe buýt', 
-        'xe tải', 'xe lửa', 'tàu lửa', 
-        'máy bay', 'thuyền', 'xuồng', 
-        'xe cứu thương', 'xe cứu hỏa', 'vỉa hè',
-        'đèn giao thông', 'đường phố', 
-        'cầu', 'sân bay'
-      ],
       'bien': [
-        // Basic sea & beach words
         'bãi biển', 'cát', 'sóng biển', 
         'nước biển',
-
-        // Sea creatures kids love
         'cá heo', 'cá mập', 'sao biển', 'ốc biển', 
         'sò', 'cua', 
         'rùa biển', 'bạch tuộc', 'mực', 
-        'cá voi', 'cá heo', 'cá ngựa', 
-
-        // Others
+        'cá voi', 'cá ngựa', 
         'hải đăng'
-      ],
-      'thoi_tiet': [
-        'mặt trời', 'mặt trăng', 'nắng', 'đám mây', 'mưa', 'cầu vồng', 
-        'gió', 'bão', 'sương mù', 'tuyết'
-      ],
-      'cam_xuc': [
-        'vui', 'buồn', 'giận', 'sợ hãi', 'ngạc nhiên', 
-        'hạnh phúc', 'thích', 'yêu', 'ghét', 
-        'mệt mỏi', 'đói bụng', 'khát nước', 
-        'cười', 'khóc', 'xấu hổ', 'tự hào',
-      ],
-      'nghe_nghiep': [
-        'bác sĩ', 'y tá', 'thầy giáo', 'cô giáo',
-        'cảnh sát', 'lính cứu hỏa', 'đầu bếp',
-        'nông dân', 'kỹ sư', 
-        'ca sĩ', 'diễn viên', 'hoạ sĩ', 
-        'phi công', 'tài xế', 'người bán hàng'
       ],
       'alphabet': [
         'a', 'ă', 'â', 'b', 'c', 'd', 'đ', 'e', 'ê', 
@@ -221,15 +185,35 @@ class DatabaseService {
       ],
     };
 
-    final stmt = _db.prepare('INSERT OR IGNORE INTO words (text, category_id) VALUES (?, ?)');
+    final stmt = _db.prepare('INSERT OR REPLACE INTO words (text, category_id, image_url) VALUES (?, ?, ?)');
     
+    // Track all current default word texts to prune old ones
+    final List<String> currentWordTexts = [];
+
     categoryWords.forEach((categoryId, words) {
       for (var word in words) {
-        stmt.execute([word, categoryId]);
+        currentWordTexts.add(word);
+        final imageUrl = _resolveImageUrl(categoryId, word);
+        stmt.execute([word, categoryId, imageUrl]);
       }
     });
 
     stmt.dispose();
+
+    // Prune old words that are no longer in the default list 
+    // but belong to one of the default categories.
+    final defaultCategoryIds = categoryWords.keys.map((id) => "'$id'").join(',');
+    final validWordTexts = currentWordTexts.map((t) => "'${t.replaceAll("'", "''")}'").join(',');
+    
+    _db.execute('''
+      DELETE FROM words 
+      WHERE category_id IN ($defaultCategoryIds) 
+      AND text NOT IN ($validWordTexts)
+    ''');
+  }
+
+  String? _resolveImageUrl(String categoryId, String word) {
+    return CategoryAssets.getWordAsset(categoryId, word);
   }
 
   List<Map<String, dynamic>> getAllCategories() {
@@ -248,18 +232,19 @@ class DatabaseService {
       'id': row['id'],
       'text': row['text'],
       'category_id': row['category_id'],
+      'image_url': row['image_url'],
       'added_at': row['added_at'],
     }).toList();
   }
 
-  void addWord(String text, {String categoryId = 'custom'}) {
+  void addWord(String text, {String categoryId = 'custom', String? imageUrl}) {
     try {
-      final stmt = _db.prepare('INSERT INTO words (text, category_id) VALUES (?, ?)');
-      stmt.execute([text, categoryId]);
+      final stmt = _db.prepare('INSERT INTO words (text, category_id, image_url) VALUES (?, ?, ?)');
+      stmt.execute([text, categoryId, imageUrl]);
       stmt.dispose();
     } catch (e) {
-      // Ignore duplicates or handle error
-      print('Error adding word: $e');
+      // Update image_url if word already exists
+      _db.execute('UPDATE words SET image_url = ? WHERE text = ?', [imageUrl, text]);
     }
   }
 
@@ -269,6 +254,7 @@ class DatabaseService {
       'id': row['id'],
       'text': row['text'],
       'category_id': row['category_id'],
+      'image_url': row['image_url'],
       'added_at': row['added_at'],
     }).toList();
   }

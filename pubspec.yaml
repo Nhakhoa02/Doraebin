@@ -77,6 +77,18 @@ flutter:
   assets:
     - assets/animations/
     - assets/images/
+    - assets/images/co_the/
+    - assets/images/con_trung/
+    - assets/images/do_choi/
+    - assets/images/dong_vat/
+    - assets/images/gia_dinh/
+    - assets/images/hoa/
+    - assets/images/mau_sac/
+    - assets/images/mon_an/
+    - assets/images/nuoc_uong/
+    - assets/images/quan_ao/
+    - assets/images/so_dem/
+    - assets/images/truong_hoc/
     - assets/svg/
     - assets/models/sherpa-onnx-zipformer-vi-int8-2025-04-20/sherpa-onnx-zipformer-vi-int8-2025-04-20/
     - assets/models/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09/sherpa-onnx-zipformer-vi-30M-int8-2026-02-09/

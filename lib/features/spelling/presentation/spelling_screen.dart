@@ -72,7 +72,7 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
 
   // --- Logic & Actions ---
 
-  Future<void> _startAutoSpelling(List<String> displayParts, List<String> ttsParts) async {
+  Future<void> _startAutoSpelling(String originalWord, List<String> displayParts, List<String> ttsParts) async {
     if (_isAutoSpelling) return;
     
     setState(() {
@@ -90,6 +90,13 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
     if (mounted) {
       setState(() {
         _activeSpellingIndex = -1;
+      });
+      
+      // Wait a small gap and read the whole word again
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _tts.speak(originalWord);
+      
+      setState(() {
         _isAutoSpelling = false;
       });
       _emojiController.forward(from: 0);
@@ -180,7 +187,7 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
           ),
           const SizedBox(height: 8),
           ElevatedButton.icon(
-            onPressed: _isAutoSpelling ? null : () => _startAutoSpelling(displayParts, ttsParts),
+            onPressed: _isAutoSpelling ? null : () => _startAutoSpelling(original, displayParts, ttsParts),
             icon: _isAutoSpelling 
               ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimaryContainer))
               : const Icon(Icons.play_arrow_rounded, size: 24),
@@ -205,6 +212,8 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
 
   Widget _buildEmojiIllustration(BuildContext context, String original) {
     final colorScheme = Theme.of(context).colorScheme;
+    final wordItem = currentWordItemSignal.watch(context);
+    
     return ScaleTransition(
       scale: _emojiScale,
       child: Container(
@@ -213,16 +222,30 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
           borderRadius: BorderRadius.circular(32),
           border: Border.all(color: colorScheme.surfaceContainerLowest, width: 4),
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Center(
-              child: Text(
-                _getEmojiForWord(original),
-                style: TextStyle(fontSize: constraints.maxHeight * 0.5),
-              ),
-            );
-          }
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (wordItem != null && wordItem.imageUrl.startsWith('assets/')) {
+                return Image.asset(
+                  wordItem.imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => _buildEmojiFallback(original, constraints),
+                );
+              }
+              return _buildEmojiFallback(original, constraints);
+            }
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmojiFallback(String original, BoxConstraints constraints) {
+    return Center(
+      child: Text(
+        _getEmojiForWord(original),
+        style: TextStyle(fontSize: constraints.maxHeight * 0.5),
       ),
     );
   }
@@ -246,19 +269,22 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
               color: colorScheme.primary.withOpacity(0.6),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           Expanded(
             child: Center(
               child: FittedBox(
                 fit: BoxFit.contain,
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 12,
-                  children: List.generate(displayParts.length, (index) {
-                    return _buildSticker(index, displayParts, ttsParts);
-                  }),
+                child: SizedBox(
+                  width: 800, // Constrain width to encourage wrapping on wide screens
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 16,
+                    runSpacing: 20,
+                    children: List.generate(displayParts.length, (index) {
+                      return _buildSticker(index, displayParts, ttsParts);
+                    }),
+                  ),
                 ),
               ),
             ),
@@ -344,6 +370,8 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
       ),
     );
   }
+
+
 }
 
 // --- Specialized Components ---

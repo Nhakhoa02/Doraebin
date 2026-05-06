@@ -10,6 +10,7 @@ final dbService = DatabaseService();
 final historySignal = signal<List<Map<String, dynamic>>>([]);
 final lessonsSignal = signal<List<Lesson>>([]);
 final currentWordSignal = signal<DecomposedSyllable?>(null);
+final currentWordItemSignal = signal<WordItem?>(null);
 
 // Actions
 Future<void> initAppSignals() async {
@@ -41,10 +42,7 @@ void refreshLessons() {
 
 Future<List<WordItem>> getWordsForLesson(String lessonId) async {
   final wordsData = dbService.getWordsByCategory(lessonId);
-  return wordsData.map((w) => WordItem(
-    text: w['text'] as String,
-    imageUrl: '', // We can add image URL logic later
-  )).toList();
+  return wordsData.map((w) => WordItem.fromDatabase(w)).toList();
 }
 
 Color _hexToColor(String hex) {
@@ -55,8 +53,32 @@ void selectWord(String text) {
   final result = getSpellingForText(text);
   currentWordSignal.value = result;
   
+  // Try to find the full word item in the database for images/category info
+  final allWords = dbService.getAllWords();
+  final matchingWord = allWords.firstWhere(
+    (w) => w['text'] == text,
+    orElse: () => <String, dynamic>{},
+  );
+
+  if (matchingWord.isNotEmpty) {
+    currentWordItemSignal.value = WordItem.fromDatabase(matchingWord);
+  } else {
+    // Create a temporary WordItem for custom words
+    currentWordItemSignal.value = WordItem(text: text, imageUrl: '');
+  }
+  
   // Add to history if not there
   dbService.addWord(text);
+  refreshHistory();
+}
+
+void selectWordItem(WordItem item) {
+  final result = getSpellingForText(item.text);
+  currentWordSignal.value = result;
+  currentWordItemSignal.value = item;
+  
+  // Add to history if not there
+  dbService.addWord(item.text, categoryId: 'custom', imageUrl: item.imageUrl);
   refreshHistory();
 }
 

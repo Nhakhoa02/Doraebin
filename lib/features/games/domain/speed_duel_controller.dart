@@ -20,8 +20,8 @@ class SpeedDuelController {
 
   // --- Services ---
   final FlutterTts _tts = FlutterTts();
-  final ISTTService _sttService = ISTTService.sherpa(type: 4, online: false); // Switch to .sherpa() to use Sherpa ONNX
-  // final ISTTService _sttService = ISTTService.flutter();
+  // final ISTTService _sttService = ISTTService.sherpa(type: 4, online: false); // Switch to .sherpa() to use Sherpa ONNX
+  final ISTTService _sttService = ISTTService.flutter();
   bool _speechAvailable = false;
 
   // --- State ---
