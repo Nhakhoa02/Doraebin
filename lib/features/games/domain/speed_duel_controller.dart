@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../../core/services/stt_service.dart';
+import '../../../core/data/database_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'speed_duel_models.dart';
@@ -20,8 +21,8 @@ class SpeedDuelController {
 
   // --- Services ---
   final FlutterTts _tts = FlutterTts();
-  // final ISTTService _sttService = ISTTService.sherpa(type: 4, online: false); // Switch to .sherpa() to use Sherpa ONNX
-  final ISTTService _sttService = ISTTService.flutter();
+  final ISTTService _sttService = ISTTService.sherpa(type: 4, online: false); // Switch to .sherpa() to use Sherpa ONNX
+  final DatabaseService _dbService = DatabaseService();
   bool _speechAvailable = false;
 
   // --- State ---
@@ -39,11 +40,7 @@ class SpeedDuelController {
   bool _micBusy = false;
 
   // --- Vocabulary pool ---
-  final List<String> _vocabulary = const [
-    'Con cá', 'Quả táo', 'Con mèo', 'Cái nhà', 'Trường học',
-    'Bánh chưng', 'Ông bà', 'Hoa hồng', 'Con gà', 'Em bé',
-    'Đi học', 'Mặt trời', 'Cây đa', 'Nước uống', 'Đồ chơi',
-  ];
+  List<String> _vocabulary = [];
 
   // --- Bot roster ---
   final List<BotInfo> allBots = const [
@@ -61,6 +58,19 @@ class SpeedDuelController {
     await _tts.setLanguage("vi-VN");
     await _tts.setPitch(1.1);
     await _tts.setSpeechRate(0.5);
+
+    // Initialize database and load vocabulary (excluding alphabet)
+    await _dbService.init();
+    final allWords = _dbService.getAllWords();
+    _vocabulary = allWords
+        .where((w) => w['category_id'] != 'alphabet')
+        .map((w) => w['text'] as String)
+        .toList();
+    
+    // Fallback if database is empty
+    if (_vocabulary.isEmpty) {
+      _vocabulary = ['Con cá', 'Quả táo', 'Con mèo', 'Cái nhà', 'Trường học'];
+    }
   }
 
   Future<void> initSTT() async {

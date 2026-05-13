@@ -61,19 +61,19 @@ class DatabaseService {
       ['dong_vat', 'Động vật', '🐶', '#FF9800'],
       ['con_trung', 'Côn trùng', '🐛', '#4CAF50'],
       ['hoa', 'Hoa', '🌻', '#8BC34A'],
-      ['cay_coi', 'Cây cối', '🌳', '#8BC34A'],
-      ['trai_cay', 'Trái cây', '🍎', '#F44336'],
-      ['rau_cu', 'Rau củ', '🥕', '#F44336'],
+      // ['cay_coi', 'Cây cối', '🌳', '#8BC34A'],
+      // ['trai_cay', 'Trái cây', '🍎', '#F44336'],
+      // ['rau_cu', 'Rau củ', '🥕', '#F44336'],
       ['mon_an',  'Đồ ăn', '🍕', '#FFC107'],
       ['nuoc_uong', 'Nước uống', '🥤', '#FFC107'],
       ['quan_ao', 'Quần áo', '👕', '#3F51B5'],
       ['do_choi', 'Đồ chơi', '🧸', '#00BCD4'],
       ['truong_hoc', 'Trường học', '🎒', '#795548'],
-      ['giao_thong', 'Giao thông', '🚗', '#607D8B'],
+      // ['giao_thong', 'Giao thông', '🚗', '#607D8B'],
       ['bien', 'Biển', '🌊', '#2196F3'],
-      ['thoi_tiet', 'Thời tiết', '☀️', '#FFEB3B'],
-      ['cam_xuc', 'Cảm xúc', '😊', '#FF4081'],
-      ['nghe_nghiep', 'Nghề nghiệp', '👩‍⚕️', '#9E9E9E'],
+      // ['thoi_tiet', 'Thời tiết', '☀️', '#FFEB3B'],
+      // ['cam_xuc', 'Cảm xúc', '😊', '#FF4081'],
+      // ['nghe_nghiep', 'Nghề nghiệp', '👩‍⚕️', '#9E9E9E'],
       ['alphabet', 'Bảng chữ cái', '🔤', '#03A9F4'],
     ];
 
@@ -154,7 +154,7 @@ class DatabaseService {
       'quan_ao': [
         'áo', 'quần', 'váy', 'đầm', 'áo khoác', 
         'áo sơ mi', 'áo thun', 
-        'giày', 'dép', 'vớ', 'mũ', 'nón', 'khăn quàng cổ'
+        'giày', 'dép', 'vớ', 'nón', 'khăn quàng cổ'
       ],
       'do_choi': [
         'bong bóng', 'búp bê', 'gấu bông', 'xếp hình', 
@@ -171,10 +171,9 @@ class DatabaseService {
       ],
       'bien': [
         'bãi biển', 'cát', 'sóng biển', 
-        'nước biển',
-        'cá heo', 'cá mập', 'sao biển', 'ốc biển', 
-        'sò', 'cua', 
-        'rùa biển', 'bạch tuộc', 'mực', 
+        'cá heo', 'cá mập', 'sao biển', 
+        'con sò', 'con cua', 
+        'rùa biển', 'con mực', 'con bạch tuộc', 
         'cá voi', 'cá ngựa', 
         'hải đăng'
       ],

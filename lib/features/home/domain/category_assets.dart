@@ -9,9 +9,9 @@ class CategoryAssets {
   static const Map<String, String> lottieIcons = {
     'gia_dinh': 'assets/animations/family.lottie',
     'dong_vat': 'assets/animations/animal.lottie',
-    'cam_xuc': 'assets/animations/emotion.lottie',
+    // 'cam_xuc': 'assets/animations/emotion.lottie',
     'bien': 'assets/animations/ocean.lottie',
-    'thoi_tiet': 'assets/animations/weather.lottie',
+    // 'thoi_tiet': 'assets/animations/weather.lottie',
     'con_trung': 'assets/animations/insect.lottie',
   };
 
@@ -21,10 +21,10 @@ class CategoryAssets {
     'mau_sac': 'assets/images/color.jpg',
     'hoa': 'assets/images/flower.jpg',
     'mon_an': 'assets/images/food.jpg',
-    'trai_cay': 'assets/images/fruit.jpg',
+    // 'trai_cay': 'assets/images/fruit.jpg',
     'so_dem': 'assets/images/number.jpg',
     'do_choi': 'assets/images/toy.jpg',
-    'cay_coi': 'assets/images/tree.jpg',
+    // 'cay_coi': 'assets/images/tree.jpg',
   };
 
   /// Map of category_id → asset path for SVG icons.
@@ -32,10 +32,10 @@ class CategoryAssets {
     'co_the': 'assets/svg/body.svg',
     'quan_ao': 'assets/svg/clothes.svg',
     'nuoc_uong': 'assets/svg/drink.svg',
-    'nghe_nghiep': 'assets/svg/job.svg',
+    // 'nghe_nghiep': 'assets/svg/job.svg',
     'truong_hoc': 'assets/svg/school.svg',
-    'giao_thong': 'assets/svg/traffic.svg',
-    'rau_cu': 'assets/svg/vegetable.svg',
+    // 'giao_thong': 'assets/svg/traffic.svg',
+    // 'rau_cu': 'assets/svg/vegetable.svg',
   };
 
   /// Returns the Lottie asset path for a category, or null if none exists.
@@ -265,6 +265,53 @@ class CategoryAssets {
         'tiết học': 'assets/images/truong_hoc/Tiết học.jpg',
         'cổng trường': 'assets/images/truong_hoc/Cổng trường.jpg',
         'sân trường': 'assets/images/truong_hoc/Sân trường.webp',
+      },
+      'bien': {
+        'bãi biển': 'assets/images/bai_bien/bai_bien.jpg',
+        'cát': 'assets/images/bai_bien/cat.png',
+        'sóng biển': 'assets/images/bai_bien/song_bien.jpg',
+        'cá heo': 'assets/images/bai_bien/dolphin.jpg',
+        'cá mập': 'assets/images/bai_bien/ca_map.webp',
+        'sao biển': 'assets/images/bai_bien/sao_bien.webp',
+        'con sò': 'assets/images/bai_bien/con_so.jpg',
+        'con cua': 'assets/images/bai_bien/con_cua.jpg',
+        'rùa biển': 'assets/images/bai_bien/rua_bien.jfif',
+        'con mực': 'assets/images/bai_bien/con_muc.jpeg',
+        'con bạch tuộc': 'assets/images/bai_bien/bach_tuot.jpg',
+        'cá voi': 'assets/images/bai_bien/ca_voi.webp',
+        'cá ngựa': 'assets/images/bai_bien/ca-ngua.jpg',
+        'hải đăng': 'assets/images/bai_bien/hai_dang.webp',
+      },
+      'alphabet': {
+        'a': 'assets/images/chu_cai/a.jfif',
+        'ă': 'assets/images/chu_cai/ă.jfif',
+        'â': 'assets/images/chu_cai/â.png',
+        'b': 'assets/images/chu_cai/b.avif',
+        'c': 'assets/images/chu_cai/c.jfif',
+        'd': 'assets/images/chu_cai/d.jfif',
+        'đ': 'assets/images/chu_cai/đ.jfif',
+        'e': 'assets/images/chu_cai/e.jpg',
+        'ê': 'assets/images/chu_cai/ê.jfif',
+        'g': 'assets/images/chu_cai/g.jfif',
+        'h': 'assets/images/chu_cai/h.jfif',
+        'i': 'assets/images/chu_cai/i.jfif',
+        'k': 'assets/images/chu_cai/k.jfif',
+        'l': 'assets/images/chu_cai/l.jfif',
+        'm': 'assets/images/chu_cai/m.jfif',
+        'n': 'assets/images/chu_cai/n.jfif',
+        'o': 'assets/images/chu_cai/o.png',
+        'ô': 'assets/images/chu_cai/ô.png',
+        'ơ': 'assets/images/chu_cai/ơ.jfif',
+        'p': 'assets/images/chu_cai/p.jfif',
+        'q': 'assets/images/chu_cai/q.png',
+        'r': 'assets/images/chu_cai/r.jfif',
+        's': 'assets/images/chu_cai/s.png',
+        't': 'assets/images/chu_cai/t.jfif',
+        'u': 'assets/images/chu_cai/u.jfif',
+        'ư': 'assets/images/chu_cai/ư.jfif',
+        'v': 'assets/images/chu_cai/v.jfif',
+        'x': 'assets/images/chu_cai/x.jfif',
+        'y': 'assets/images/chu_cai/y.jfif',
       }
     };
 

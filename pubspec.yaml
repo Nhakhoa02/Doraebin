@@ -77,6 +77,8 @@ flutter:
   assets:
     - assets/animations/
     - assets/images/
+    - assets/images/bai_bien/
+    - assets/images/chu_cai/
     - assets/images/co_the/
     - assets/images/con_trung/
     - assets/images/do_choi/
