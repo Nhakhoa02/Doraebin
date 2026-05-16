@@ -77,15 +77,22 @@ class DatabaseService {
       ['alphabet', 'Bảng chữ cái', '🔤', '#03A9F4'],
     ];
 
-    // Remove any category NOT in the current list (Pruning)
-    final currentIds = categories.map((c) => "'${c[0]}'").join(',');
-    _db.execute('DELETE FROM categories WHERE id NOT IN ($currentIds)');
+    _db.execute('BEGIN TRANSACTION');
+    try {
+      // Remove any category NOT in the current list (Pruning)
+      final currentIds = categories.map((c) => "'${c[0]}'").join(',');
+      _db.execute('DELETE FROM categories WHERE id NOT IN ($currentIds)');
 
-    final stmt = _db.prepare('INSERT OR REPLACE INTO categories (id, title, emoji, color_hex) VALUES (?, ?, ?, ?)');
-    for (var cat in categories) {
-      stmt.execute(cat);
+      final stmt = _db.prepare('INSERT OR REPLACE INTO categories (id, title, emoji, color_hex) VALUES (?, ?, ?, ?)');
+      for (var cat in categories) {
+        stmt.execute(cat);
+      }
+      stmt.dispose();
+      _db.execute('COMMIT');
+    } catch (e) {
+      _db.execute('ROLLBACK');
+      rethrow;
     }
-    stmt.dispose();
   }
 
   void _insertDefaultWords() {
@@ -184,20 +191,34 @@ class DatabaseService {
       ],
     };
 
-    final stmt = _db.prepare('INSERT OR REPLACE INTO words (text, category_id, image_url) VALUES (?, ?, ?)');
+    // Check if we already have default words to avoid unnecessary heavy sync every time
+    final countResult = _db.select('SELECT COUNT(*) as count FROM words');
+    final count = countResult.first['count'] as int;
     
-    // Track all current default word texts to prune old ones
+    // If we have words, we can skip the heavy sync or do it conditionally.
+    // For now, let's only sync if empty to eliminate the "every entry" lag.
+    if (count > 200) return; 
+
     final List<String> currentWordTexts = [];
 
-    categoryWords.forEach((categoryId, words) {
-      for (var word in words) {
-        currentWordTexts.add(word);
-        final imageUrl = _resolveImageUrl(categoryId, word);
-        stmt.execute([word, categoryId, imageUrl]);
-      }
-    });
+    _db.execute('BEGIN TRANSACTION');
+    try {
+      final stmt = _db.prepare('INSERT OR REPLACE INTO words (text, category_id, image_url) VALUES (?, ?, ?)');
+      
+      categoryWords.forEach((categoryId, words) {
+        for (var word in words) {
+          currentWordTexts.add(word);
+          final imageUrl = _resolveImageUrl(categoryId, word);
+          stmt.execute([word, categoryId, imageUrl]);
+        }
+      });
 
-    stmt.dispose();
+      stmt.dispose();
+      _db.execute('COMMIT');
+    } catch (e) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
 
     // Prune old words that are no longer in the default list 
     // but belong to one of the default categories.

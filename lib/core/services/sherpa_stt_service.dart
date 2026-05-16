@@ -20,10 +20,13 @@ class SherpaSTTService implements ISTTService {
   final int type;
   final bool online;
 
-  sherpa_onnx.OfflineRecognizer? _offlineRecognizer;
-  sherpa_onnx.OnlineRecognizer? _onlineRecognizer;
+  static sherpa_onnx.OfflineRecognizer? _globalOfflineRecognizer;
+  static sherpa_onnx.OnlineRecognizer? _globalOnlineRecognizer;
+  static sherpa_onnx.VoiceActivityDetector? _globalVad;
+  static int? _loadedType;
+  static bool? _loadedOnline;
+
   sherpa_onnx.OnlineStream? _onlineStream;
-  sherpa_onnx.VoiceActivityDetector? _vad;
 
   final AudioRecorder _audioRecorder = AudioRecorder();
   StreamSubscription? _audioSubscription;
@@ -66,49 +69,44 @@ class SherpaSTTService implements ISTTService {
 
   @override
   Future<bool> initialize() async {
-    if (_isInitialized) return true;
+    if (_isInitialized && _loadedType == type && _loadedOnline == online) return true;
 
     try {
       sherpa_onnx.initBindings();
 
       if (online) {
-        // --- TRUE STREAMING MODE ---
-        print('[SherpaSTT] Loading online streaming model (type: $type)...');
-        final modelConfig = await getOnlineModelConfig(type: type);
-        final config = sherpa_onnx.OnlineRecognizerConfig(
-          model: modelConfig,
-          enableEndpoint: true,
-          rule1MinTrailingSilence: 2.4,
-          rule2MinTrailingSilence: 1.2,
-          rule3MinUtteranceLength: 300,
-        );
-        _onlineRecognizer = sherpa_onnx.OnlineRecognizer(config);
-        _onlineStream = _onlineRecognizer!.createStream();
-        print('[SherpaSTT] Online recognizer created OK');
+        if (_globalOnlineRecognizer == null || _loadedType != type || !_loadedOnline!) {
+          final modelConfig = await getOnlineModelConfig(type: type);
+          final config = sherpa_onnx.OnlineRecognizerConfig(
+            model: modelConfig,
+            enableEndpoint: true,
+            rule1MinTrailingSilence: 2.4,
+            rule2MinTrailingSilence: 1.2,
+            rule3MinUtteranceLength: 300,
+          );
+          _globalOnlineRecognizer = sherpa_onnx.OnlineRecognizer(config);
+        }
+        _onlineStream = _globalOnlineRecognizer!.createStream();
       } else {
-        // --- SIMULATED STREAMING MODE (VAD + OFFLINE) ---
-        print('[SherpaSTT] Loading offline model (type: $type)...');
-        final modelConfig = await getOfflineModelConfig(type: type);
-        final config = sherpa_onnx.OfflineRecognizerConfig(
-          model: modelConfig,
-        );
-        _offlineRecognizer = sherpa_onnx.OfflineRecognizer(config);
-        print('[SherpaSTT] Offline recognizer created OK');
+        if (_globalOfflineRecognizer == null || _loadedType != type || (_loadedOnline ?? false)) {
+          final modelConfig = await getOfflineModelConfig(type: type);
+          final config = sherpa_onnx.OfflineRecognizerConfig(
+            model: modelConfig,
+          );
+          _globalOfflineRecognizer = sherpa_onnx.OfflineRecognizer(config);
 
-        // Initialize VAD (Silero VAD)
-        print('[SherpaSTT] Loading VAD model...');
-        final vadConfig = await getVadModelConfig(type: 0);
-        _vad = sherpa_onnx.VoiceActivityDetector(
-          config: vadConfig,
-          bufferSizeInSeconds: 30,
-        );
-        print('[SherpaSTT] VAD created OK');
+          final vadConfig = await getVadModelConfig(type: 0);
+          _globalVad = sherpa_onnx.VoiceActivityDetector(
+            config: vadConfig,
+            bufferSizeInSeconds: 30,
+          );
+        }
       }
 
+      _loadedType = type;
+      _loadedOnline = online;
       _isAvailable = true;
       _isInitialized = true;
-      print(
-          '[SherpaSTT] ✅ Initialized (${online ? "TRUE STREAMING" : "VAD + OFFLINE SIMULATION"})');
       return true;
     } catch (e, st) {
       print('[SherpaSTT] ❌ Init error: $e\n$st');
@@ -124,8 +122,8 @@ class SherpaSTTService implements ISTTService {
     Function(String)? onStatus,
   }) async {
     if (!_isAvailable ||
-        (online && _onlineRecognizer == null) ||
-        (!online && (_offlineRecognizer == null || _vad == null))) {
+        (online && _globalOnlineRecognizer == null) ||
+        (!online && (_globalOfflineRecognizer == null || _globalVad == null))) {
       final ok = await initialize();
       if (!ok) {
         onError?.call('Failed to initialize Sherpa ONNX');
@@ -157,9 +155,9 @@ class SherpaSTTService implements ISTTService {
 
     if (online) {
       _onlineStream?.free();
-      _onlineStream = _onlineRecognizer!.createStream();
+      _onlineStream = _globalOnlineRecognizer!.createStream();
     } else {
-      _vad!.reset();
+      // _globalVad!.reset(); // VAD disabled for post-recording processing
     }
 
     const config = RecordConfig(
@@ -190,11 +188,11 @@ class SherpaSTTService implements ISTTService {
         },
       );
 
-      // Process audio at ~100ms intervals
-      _processTimer = Timer.periodic(
-        const Duration(milliseconds: 100),
-        (_) => _processAudioBuffer(),
-      );
+      // // Process audio at ~100ms intervals (VAD/Real-time logic disabled)
+      // _processTimer = Timer.periodic(
+      //   const Duration(milliseconds: 100),
+      //   (_) => _processAudioBuffer(),
+      // );
     } catch (e) {
       print('[SherpaSTT] ❌ Failed to start stream: $e');
       onError?.call('Failed to start audio stream: $e');
@@ -204,8 +202,8 @@ class SherpaSTTService implements ISTTService {
   /// Core processing loop
   void _processAudioBuffer() {
     if (!_isListening) return;
-    if (online && _onlineRecognizer == null) return;
-    if (!online && (_vad == null || _offlineRecognizer == null)) return;
+    if (online && _globalOnlineRecognizer == null) return;
+    if (!online && (_globalVad == null || _globalOfflineRecognizer == null)) return;
 
     // Prevent re-entrant calls (decode can be slow)
     if (_isProcessing) return;
@@ -226,11 +224,11 @@ class SherpaSTTService implements ISTTService {
 
   /// True streaming processing logic
   void _processOnline() {
-    while (_onlineRecognizer!.isReady(_onlineStream!)) {
-      _onlineRecognizer!.decode(_onlineStream!);
+    while (_globalOnlineRecognizer!.isReady(_onlineStream!)) {
+      _globalOnlineRecognizer!.decode(_onlineStream!);
     }
 
-    final result = _onlineRecognizer!.getResult(_onlineStream!);
+    final result = _globalOnlineRecognizer!.getResult(_onlineStream!);
     final text = result.text.trim();
 
     if (text.isNotEmpty && text != _lastText) {
@@ -239,8 +237,8 @@ class SherpaSTTService implements ISTTService {
       print('[SherpaSTT] 📝 Online: "$text"');
     }
 
-    if (_onlineRecognizer!.isEndpoint(_onlineStream!)) {
-      _onlineRecognizer!.reset(_onlineStream!);
+    if (_globalOnlineRecognizer!.isEndpoint(_onlineStream!)) {
+      _globalOnlineRecognizer!.reset(_onlineStream!);
       print('[SherpaSTT] 🏁 Online: Endpoint detected');
     }
   }
@@ -260,12 +258,12 @@ class SherpaSTTService implements ISTTService {
       for (int i = 0; i < _vadWindowSize; i++) {
         window[i] = _audioBuffer[_bufferOffset + i];
       }
-      _vad!.acceptWaveform(window);
+      _globalVad!.acceptWaveform(window);
       _bufferOffset += _vadWindowSize;
       windowsProcessed++;
 
       // Detect speech onset
-      if (!_isSpeechStarted && _vad!.isDetected()) {
+      if (!_isSpeechStarted && _globalVad!.isDetected()) {
         _isSpeechStarted = true;
         // Look back 0.4 seconds (6400 samples @ 16kHz) for context
         _speechStartOffset = _bufferOffset - 6400;
@@ -282,8 +280,8 @@ class SherpaSTTService implements ISTTService {
           'offset=$_bufferOffset '
           'windows=$windowsProcessed '
           'speech=$_isSpeechStarted '
-          'vadDetected=${_vad!.isDetected()} '
-          'vadEmpty=${_vad!.isEmpty()}');
+          'vadDetected=${_globalVad!.isDetected()} '
+          'vadEmpty=${_globalVad!.isEmpty()}');
     }
   }
 
@@ -303,10 +301,10 @@ class SherpaSTTService implements ISTTService {
         speechSamples[i] = _audioBuffer[_speechStartOffset + i];
       }
 
-      final stream = _offlineRecognizer!.createStream();
+      final stream = _globalOfflineRecognizer!.createStream();
       stream.acceptWaveform(samples: speechSamples, sampleRate: _sampleRate);
-      _offlineRecognizer!.decode(stream);
-      final result = _offlineRecognizer!.getResult(stream);
+      _globalOfflineRecognizer!.decode(stream);
+      final result = _globalOfflineRecognizer!.getResult(stream);
       stream.free();
 
       final text = result.text.trim();
@@ -325,18 +323,18 @@ class SherpaSTTService implements ISTTService {
 
   /// Step 4: Process completed VAD segments (Offline mode only)
   void _processCompletedSegments() {
-    while (!_vad!.isEmpty()) {
-      final segment = _vad!.front();
+    while (!_globalVad!.isEmpty()) {
+      final segment = _globalVad!.front();
       print('[SherpaSTT] 📦 VAD segment: ${segment.samples.length} samples');
 
       try {
-        final stream = _offlineRecognizer!.createStream();
+        final stream = _globalOfflineRecognizer!.createStream();
         stream.acceptWaveform(
           samples: segment.samples,
           sampleRate: _sampleRate,
         );
-        _offlineRecognizer!.decode(stream);
-        final result = _offlineRecognizer!.getResult(stream);
+        _globalOfflineRecognizer!.decode(stream);
+        final result = _globalOfflineRecognizer!.getResult(stream);
         stream.free();
 
         final text = result.text.trim();
@@ -349,7 +347,7 @@ class SherpaSTTService implements ISTTService {
         print('[SherpaSTT] ❌ Final ASR error: $e');
       }
 
-      _vad!.pop();
+      _globalVad!.pop();
 
       // Reset state for next utterance
       _isSpeechStarted = false;
@@ -371,58 +369,76 @@ class SherpaSTTService implements ISTTService {
 
     if (online) {
       // For online mode, just grab one last result if any
-      if (_onlineRecognizer != null && _onlineStream != null) {
-        while (_onlineRecognizer!.isReady(_onlineStream!)) {
-          _onlineRecognizer!.decode(_onlineStream!);
+      if (_globalOnlineRecognizer != null && _onlineStream != null) {
+        while (_globalOnlineRecognizer!.isReady(_onlineStream!)) {
+          _globalOnlineRecognizer!.decode(_onlineStream!);
         }
-        final result = _onlineRecognizer!.getResult(_onlineStream!);
+        final result = _globalOnlineRecognizer!.getResult(_onlineStream!);
         if (result.text.isNotEmpty) {
           _onResult?.call(result.text.trim(), true);
         }
-        _onlineRecognizer!.reset(_onlineStream!);
+        _globalOnlineRecognizer!.reset(_onlineStream!);
       }
     } else {
-      // Flush any remaining speech in the VAD
-      if (_vad != null && _offlineRecognizer != null) {
-        _vad!.flush();
-        while (!_vad!.isEmpty()) {
-          final segment = _vad!.front();
-          try {
-            final stream = _offlineRecognizer!.createStream();
-            stream.acceptWaveform(
-                samples: segment.samples, sampleRate: _sampleRate);
-            _offlineRecognizer!.decode(stream);
-            final result = _offlineRecognizer!.getResult(stream);
-            stream.free();
-            if (result.text.isNotEmpty) {
-              _onResult?.call(result.text.trim(), true);
-            }
-          } catch (e) {
-            print('[SherpaSTT] ❌ Flush error: $e');
-          }
-          _vad!.pop();
-        }
+      // // Flush any remaining speech in the VAD
+      // if (_vad != null && _offlineRecognizer != null) {
+      //   _vad!.flush();
+      //   while (!_vad!.isEmpty()) {
+      //     final segment = _vad!.front();
+      //     try {
+      //       final stream = _offlineRecognizer!.createStream();
+      //       stream.acceptWaveform(
+      //           samples: segment.samples, sampleRate: _sampleRate);
+      //       _offlineRecognizer!.decode(stream);
+      //       final result = _offlineRecognizer!.getResult(stream);
+      //       stream.free();
+      //       if (result.text.isNotEmpty) {
+      //         _onResult?.call(result.text.trim(), true);
+      //       }
+      //     } catch (e) {
+      //       print('[SherpaSTT] ❌ Flush error: $e');
+      //     }
+      //     _vad!.pop();
+      //   }
+      //
+      //   // Final residual decode
+      //   if (_isSpeechStarted && _bufferOffset > _speechStartOffset) {
+      //     final sampleCount = _bufferOffset - _speechStartOffset;
+      //     final speechSamples = Float32List(sampleCount);
+      //     for (int i = 0; i < sampleCount; i++) {
+      //       speechSamples[i] = _audioBuffer[_speechStartOffset + i];
+      //     }
+      //     try {
+      //       final stream = _offlineRecognizer!.createStream();
+      //       stream.acceptWaveform(
+      //           samples: speechSamples, sampleRate: _sampleRate);
+      //       _offlineRecognizer!.decode(stream);
+      //       final result = _offlineRecognizer!.getResult(stream);
+      //       stream.free();
+      //       if (result.text.isNotEmpty) {
+      //         _onResult?.call(result.text.trim(), true);
+      //       }
+      //     } catch (e) {
+      //       print('[SherpaSTT] ❌ Stop residual error: $e');
+      //     }
+      //   }
+      // }
 
-        // Final residual decode
-        if (_isSpeechStarted && _bufferOffset > _speechStartOffset) {
-          final sampleCount = _bufferOffset - _speechStartOffset;
-          final speechSamples = Float32List(sampleCount);
-          for (int i = 0; i < sampleCount; i++) {
-            speechSamples[i] = _audioBuffer[_speechStartOffset + i];
+      // NEW: Recognize the entire buffer at once after stopping
+      if (_globalOfflineRecognizer != null && _audioBuffer.isNotEmpty) {
+        try {
+          final speechSamples = Float32List.fromList(_audioBuffer);
+          final stream = _globalOfflineRecognizer!.createStream();
+          stream.acceptWaveform(samples: speechSamples, sampleRate: _sampleRate);
+          _globalOfflineRecognizer!.decode(stream);
+          final result = _globalOfflineRecognizer!.getResult(stream);
+          stream.free();
+          
+          if (result.text.isNotEmpty) {
+            _onResult?.call(result.text.trim(), true);
           }
-          try {
-            final stream = _offlineRecognizer!.createStream();
-            stream.acceptWaveform(
-                samples: speechSamples, sampleRate: _sampleRate);
-            _offlineRecognizer!.decode(stream);
-            final result = _offlineRecognizer!.getResult(stream);
-            stream.free();
-            if (result.text.isNotEmpty) {
-              _onResult?.call(result.text.trim(), true);
-            }
-          } catch (e) {
-            print('[SherpaSTT] ❌ Stop residual error: $e');
-          }
+        } catch (e) {
+          print('[SherpaSTT] ❌ Final ASR error: $e');
         }
       }
     }
@@ -441,14 +457,9 @@ class SherpaSTTService implements ISTTService {
   void dispose() {
     stop();
     _audioRecorder.dispose();
-    _vad?.free();
-    _offlineRecognizer?.free();
     _onlineStream?.free();
-    _onlineRecognizer?.free();
-    _vad = null;
-    _offlineRecognizer = null;
     _onlineStream = null;
-    _onlineRecognizer = null;
+    // Note: Global recognizers and VAD are kept for future sessions to avoid reloading lag
   }
 
   int _currentTimeMs() => DateTime.now().millisecondsSinceEpoch;

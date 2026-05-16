@@ -215,8 +215,9 @@ class SpeedDuelController {
           countdownValue: 0,
           gameMessage: "Bắt đầu!",
         ));
-        _tts.speak("Bắt đầu!");
-        Future.delayed(const Duration(milliseconds: 700), () {
+        _tts.stop().then((_) => _tts.speak("Bắt đầu!"));
+        
+        Future.delayed(const Duration(milliseconds: 1500), () {
           _emit(_state.copyWith(phase: GamePhase.playing));
           _startNewRound();
         });
@@ -264,14 +265,14 @@ class SpeedDuelController {
     ));
 
     if (_state.mode == DuelMode.recognize) {
-      _tts.speak(target);
+      _tts.stop().then((_) => _tts.speak(target));
     } else {
-      // For read mode: start mic after a brief delay
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_state.phase == GamePhase.playing && _state.roundWinners.isEmpty) {
-          _startMic();
-        }
-      });
+      // // For read mode: start mic after a brief delay
+      // Future.delayed(const Duration(milliseconds: 500), () {
+      //   if (_state.phase == GamePhase.playing && _state.roundWinners.isEmpty) {
+      //     _startMic();
+      //   }
+      // });
     }
 
     _scheduleBotAnswer();
@@ -438,7 +439,7 @@ class SpeedDuelController {
             _emit(_state.copyWith(
               gameMessage: "Nào, bé đọc lại từ này nhé! 🎤",
             ));
-            _startMic();
+            // _startMic(); // Kid now clicks manually to practice
           }
         });
       } else {
@@ -508,17 +509,18 @@ class SpeedDuelController {
 
           _emit(_state.copyWith(recognizedWords: words));
 
-          // Check if the kid read the word correctly
-          final wordList = words.toLowerCase().split(' ');
-          int targetLength = _state.targetWord!.toLowerCase().split(' ').length;
-          final startIndex = wordList.length - targetLength;
-          final recentWords = wordList
-              .sublist(startIndex < 0 ? 0 : startIndex)
-              .join(' ');
+          // NEW: Only handle final result after user stops (no real-time/VAD anymore)
+          if (!isFinal) return;
 
-          if (_state.targetWord != null &&
-              recentWords.contains(_state.targetWord!.toLowerCase())) {
-            
+          // Check if the kid read the word correctly
+          // For final result, we can check if the entire transcript contains the target word
+          // instead of just the last few words, but we'll stick to a similar logic if preferred.
+          // However, contains() on the whole string is safer for post-recording.
+          
+          final transcript = words.toLowerCase();
+          final target = _state.targetWord?.toLowerCase() ?? "";
+
+          if (target.isNotEmpty && transcript.contains(target)) {
             if (_state.phase == GamePhase.playing) {
               // Kid won during regular play! Also roll for bots independently
               final botWinners = _rollForBots();
@@ -540,26 +542,26 @@ class SpeedDuelController {
               });
             }
           } else if (isFinal && _state.phase == GamePhase.roundResult && words.isNotEmpty) {
-            // Wrong attempt during practice - give feedback and try again
+            // Wrong attempt during practice - give feedback
             _stopMicImmediate();
             _emit(_state.copyWith(gameMessage: "Chưa đúng rồi, nghe lại nhé! 👂"));
             _tts.speak(_state.targetWord!);
             
-            // Restart mic after TTS finishes (approx 2s)
-            Future.delayed(const Duration(seconds: 2), () {
-              if (_state.phase == GamePhase.roundResult && !_state.roundWinners.contains("Bé")) {
-                _startMic();
-              }
-            });
+            // // RE-START MIC DISABLED: Kid now clicks manually
+            // Future.delayed(const Duration(seconds: 2), () {
+            //   if (_state.phase == GamePhase.roundResult && !_state.roundWinners.contains("Bé")) {
+            //     _startMic();
+            //   }
+            // });
           }
         },
         onStatus: (status) {
           if (status == 'notListening' && _state.isListening) {
             _emit(_state.copyWith(isListening: false));
-            // Auto-restart only if in playing phase (regular game flow)
-            if (_state.phase == GamePhase.playing && _state.roundWinners.isEmpty) {
-              Future.delayed(const Duration(milliseconds: 400), () => _startMic());
-            }
+            // // Auto-restart DISABLED: Kid now clicks manually
+            // if (_state.phase == GamePhase.playing && _state.roundWinners.isEmpty) {
+            //   Future.delayed(const Duration(milliseconds: 400), () => _startMic());
+            // }
           }
         },
       );
@@ -582,8 +584,11 @@ class SpeedDuelController {
 
   /// Called when the user manually taps the mic button.
   Future<void> toggleMic() async {
-    if (_state.roundWinners.isNotEmpty) return;
-    if (_state.phase != GamePhase.playing) return;
+    // Allow toggling in playing (if no winner yet) or roundResult (for practice)
+    final canToggle = (_state.phase == GamePhase.playing && _state.roundWinners.isEmpty) ||
+                     (_state.phase == GamePhase.roundResult && !_state.roundWinners.contains("Bé"));
+    
+    if (!canToggle) return;
 
     if (_state.isListening) {
       _stopMicImmediate();
@@ -621,11 +626,12 @@ class SpeedDuelController {
     // Only restart if the round hasn't been won yet
     if (_state.roundWinners.isEmpty) {
       _scheduleBotAnswer();
-      if (_state.mode == DuelMode.read) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (_state.phase == GamePhase.playing) _startMic();
-        });
-      }
+      // // Auto-start mic DISABLED on resume
+      // if (_state.mode == DuelMode.read) {
+      //   Future.delayed(const Duration(milliseconds: 300), () {
+      //     if (_state.phase == GamePhase.playing) _startMic();
+      //   });
+      // }
     } else {
       // Round was won before pause — transition to next round
       _roundResultTimer = Timer(const Duration(seconds: 1), () {
@@ -671,9 +677,11 @@ class SpeedDuelController {
     _emit(kept.copyWith(setupStep: 2)); // go back to bot select
   }
 
-  /// Repeat TTS for the current target word (recognize mode).
+  /// Repeat TTS for the current target word.
   void repeatWord() {
-    if (_state.targetWord != null && _state.mode == DuelMode.recognize) {
+    if (_state.targetWord != null) {
+      // Stop the mic before speaking to avoid feedback
+      _stopMicImmediate();
       _tts.speak(_state.targetWord!);
     }
   }
