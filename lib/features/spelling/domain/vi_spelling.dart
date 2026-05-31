@@ -351,7 +351,9 @@ DecomposedSyllable getSpellingForText(String text) {
     final result = decomposeVietnameseSyllable(w);
     if (result.ttsString.isNotEmpty) {
       ttsParts.add(result.ttsString);
+      ttsParts.add(""); //for a short break between each word.
       spellParts.add(result.spellString);
+      spellParts.add(""); //for a short break between each word.
     }
   }
   return DecomposedSyllable(

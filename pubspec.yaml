@@ -51,6 +51,7 @@ dependencies:
   flutter_svg: ^2.2.4
   sherpa_onnx: ^1.13.0
   record: ^6.2.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
@@ -97,7 +98,7 @@ flutter:
     - assets/models/sherpa-onnx-moonshine-base-vi-quantized-2026-02-27/sherpa-onnx-moonshine-base-vi-quantized-2026-02-27/
     - assets/models/sherpa-onnx-zipformer-vi-2025-04-20/sherpa-onnx-zipformer-vi-2025-04-20/
     - assets/models/sherpa-onnx-zipformer-vi-30M-2026-02-09/sherpa-onnx-zipformer-vi-30M-2026-02-09/
-    - assets/models/sherpa-onnx-streaming-zipformer-ar_en_id_ja_ru_th_vi_zh-2025-02-10/sherpa-onnx-streaming-zipformer-ar_en_id_ja_ru_th_vi_zh-2025-02-10/
+    # - assets/models/sherpa-onnx-streaming-zipformer-ar_en_id_ja_ru_th_vi_zh-2025-02-10/sherpa-onnx-streaming-zipformer-ar_en_id_ja_ru_th_vi_zh-2025-02-10/
     - assets/models/VAD/
 
   # An image asset can refer to one or more resolution-specific "variants", see

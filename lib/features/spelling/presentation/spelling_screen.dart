@@ -60,7 +60,7 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
   Future<void> _initTts() async {
     await _tts.setLanguage("vi-VN");
     await _tts.setPitch(1.1);
-    await _tts.setSpeechRate(0.5);
+    await _tts.setSpeechRate(0.3);
   }
 
   @override
@@ -84,7 +84,7 @@ class _SpellingScreenState extends State<SpellingScreen> with TickerProviderStat
       if (!mounted) break;
       setState(() => _activeSpellingIndex = i);
       await _tts.speak(ttsParts[i]);
-      await Future.delayed(const Duration(milliseconds: 600)); 
+      await Future.delayed(const Duration(milliseconds: 400)); 
     }
 
     if (mounted) {

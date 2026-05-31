@@ -9,6 +9,7 @@ import '../../features/games/presentation/word_builder_screen.dart';
 
 import '../../features/games/presentation/speed_duel_screen.dart';
 import '../../features/games/presentation/fishing_screen.dart';
+import '../../features/games/presentation/model_test_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -33,6 +34,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/game/duel',
       builder: (context, state) => const SpeedDuelScreen(),
+    ),
+    GoRoute(
+      path: '/game/model_test',
+      builder: (context, state) => const ModelTestScreen(),
     ),
     GoRoute(
       path: '/game/bubble',

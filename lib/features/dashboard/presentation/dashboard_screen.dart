@@ -66,6 +66,12 @@ class DashboardScreen extends StatelessWidget {
                     color: Colors.blue.shade100,
                     onTap: () => context.push('/game/fishing'),
                   ),
+                  _GadgetCard(
+                    title: "Kiểm Thử ASR",
+                    icon: "🧪",
+                    color: Colors.purple.shade100,
+                    onTap: () => context.push('/game/model_test'),
+                  ),
                 ],
               ),
             ),
